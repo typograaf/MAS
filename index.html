@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MAS — Glass Overlay</title>
+  </head>
+  <body>
+    <div id="app">
+      <aside id="controls">
+        <header>
+          <h1>MAS</h1>
+          <p>Glass overlay generator</p>
+        </header>
+
+        <section class="drop-zone" id="dropZone">
+          <p>Drop image<br /><span>or click to choose</span></p>
+          <input type="file" id="fileInput" accept="image/*" hidden />
+        </section>
+
+        <section class="sliders" id="sliders"></section>
+
+        <button id="exportBtn" disabled>Export PNG</button>
+      </aside>
+
+      <main id="stage">
+        <canvas id="canvas"></canvas>
+        <div id="placeholder">Drop a photo to begin</div>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

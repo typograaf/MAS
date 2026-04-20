@@ -1,0 +1,131 @@
+:root {
+  --bg: #0e0e10;
+  --panel: #16161a;
+  --line: #26262c;
+  --text: #e8e8ec;
+  --muted: #8a8a93;
+  --accent: #c84a3b;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  overflow: hidden;
+}
+
+#app {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100vh;
+}
+
+#controls {
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+#controls header h1 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+#controls header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.drop-zone {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 22px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms;
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--accent);
+  background: rgba(200, 74, 59, 0.06);
+}
+.drop-zone p { margin: 0; color: var(--muted); }
+.drop-zone span { font-size: 11px; opacity: 0.7; }
+
+.sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.slider .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.slider label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.slider .val {
+  font-size: 11px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.slider input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+button {
+  background: var(--accent);
+  color: white;
+  border: 0;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 120ms;
+}
+button:disabled { opacity: 0.35; cursor: not-allowed; }
+button:hover:not(:disabled) { opacity: 0.92; }
+
+#stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    repeating-conic-gradient(#1a1a1f 0 25%, #141417 0 50%) 0 0/24px 24px;
+  overflow: hidden;
+}
+
+#canvas {
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+#placeholder {
+  position: absolute;
+  color: var(--muted);
+  pointer-events: none;
+}
+#canvas.has-image + #placeholder { display: none; }
