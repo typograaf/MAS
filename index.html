@@ -14,13 +14,55 @@
         </header>
 
         <section class="drop-zone" id="dropZone">
-          <p>Drop image<br /><span>or click to choose</span></p>
-          <input type="file" id="fileInput" accept="image/*" hidden />
+          <p>Drop image or video<br /><span>or click to choose</span></p>
+          <input type="file" id="fileInput" accept="image/*,video/*" hidden />
         </section>
+
+        <div class="slider">
+          <div class="row">
+            <label>Format</label>
+          </div>
+          <select id="formatSelect">
+            <option value="">Original</option>
+            <option value="1">Square (1:1)</option>
+            <option value="0.5625">Story (9:16)</option>
+            <option value="1.7778">Landscape (16:9)</option>
+            <option value="0.8">Portrait (4:5)</option>
+            <option value="2.3333">Cinema (21:9)</option>
+          </select>
+        </div>
 
         <section class="sliders" id="sliders"></section>
 
-        <button id="exportBtn" disabled>Export PNG</button>
+        <section class="playback">
+          <button id="playBtn" disabled>Play</button>
+          <div class="slider">
+            <div class="row">
+              <label>Speed</label>
+              <span class="val" id="speedVal">60 px/s</span>
+            </div>
+            <input type="range" id="speedSlider" min="-300" max="300" step="1" value="60" />
+          </div>
+        </section>
+
+        <div class="slider">
+          <div class="row">
+            <label>Export format</label>
+          </div>
+          <select id="exportFormatSelect"></select>
+        </div>
+        <div class="slider">
+          <div class="row">
+            <label>Export resolution</label>
+          </div>
+          <select id="exportResSelect">
+            <option value="1280">720p (faster)</option>
+            <option value="1920" selected>1080p</option>
+            <option value="2560">1440p</option>
+            <option value="3840">4K (slower)</option>
+          </select>
+        </div>
+        <button id="exportBtn" disabled>Export</button>
       </aside>
 
       <main id="stage">

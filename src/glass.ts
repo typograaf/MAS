@@ -2,7 +2,9 @@ const VERT = `
 attribute vec2 a_pos;
 varying vec2 v_uv;
 void main() {
-  v_uv = a_pos * 0.5 + 0.5;
+  // Flip Y here instead of relying on UNPACK_FLIP_Y_WEBGL — Safari's
+  // ImageBitmap path doesn't honor it reliably. v_uv.y = 0 at canvas top.
+  v_uv = vec2(a_pos.x * 0.5 + 0.5, 0.5 - a_pos.y * 0.5);
   gl_Position = vec4(a_pos, 0.0, 1.0);
 }
 `;
@@ -13,61 +15,94 @@ precision highp float;
 uniform sampler2D u_image;
 uniform vec2 u_imageSize;
 uniform vec2 u_canvasSize;
-uniform float u_slatWidth;     // pixels per slat
-uniform float u_strength;      // refraction offset, fraction of slat width
-uniform float u_offset;        // horizontal phase, pixels
-uniform float u_edgeSoft;      // 0..1 — softens slat seam
-uniform float u_alternate;     // 0 or 1 — flip every other slat
+uniform float u_slatWidth;
+uniform float u_strength;
+uniform float u_offset;
+uniform float u_curvature;
+uniform float u_yCurve;
+uniform float u_zoom;
+uniform float u_frost;
+uniform float u_alternate;
 
 varying vec2 v_uv;
 
 const float PI = 3.14159265359;
 
+// "cover" fit — source fills the canvas, axis with excess gets cropped.
+vec2 fitUV(vec2 cuv) {
+  float canvasAR = u_canvasSize.x / u_canvasSize.y;
+  float imageAR = u_imageSize.x / u_imageSize.y;
+  vec2 uv = cuv;
+  if (canvasAR > imageAR) {
+    // canvas wider than image -> crop top/bottom
+    float scale = imageAR / canvasAR;
+    uv.y = (cuv.y - 0.5) * scale + 0.5;
+  } else {
+    // canvas taller than image -> crop left/right
+    float scale = canvasAR / imageAR;
+    uv.x = (cuv.x - 0.5) * scale + 0.5;
+  }
+  return uv;
+}
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+vec3 sampleSource(vec2 uv) {
+  if (u_frost < 0.002) {
+    return texture2D(u_image, clamp(uv, 0.0, 1.0)).rgb;
+  }
+  // Frosted glass: average jittered samples in a disk
+  vec3 sum = vec3(0.0);
+  float radius = u_frost * 0.025;
+  for (int i = 0; i < 12; i++) {
+    float fi = float(i);
+    float a = hash(uv * 13.7 + fi) * 6.2831;
+    float r = sqrt(hash(uv * 7.3 + fi * 2.1)) * radius;
+    vec2 off = vec2(cos(a), sin(a)) * r;
+    sum += texture2D(u_image, clamp(uv + off, 0.0, 1.0)).rgb;
+  }
+  return sum / 12.0;
+}
+
 void main() {
-  // pixel-space coordinates
   vec2 px = v_uv * u_canvasSize;
 
   float sw = max(u_slatWidth, 1.0);
-  float slatPos = (px.x + u_offset) / sw;
-  float idx = floor(slatPos);
-  float local = fract(slatPos) - 0.5;        // -0.5 .. 0.5
+  float yMix = clamp(u_yCurve, 0.0, 1.0);
 
-  // Half-cylinder lens: refraction offset is ~ sin(angle).
-  // local maps to angle in (-pi/2, pi/2). Surface normal slope -> sin(angle).
-  float angle = local * PI;
-  float dir = (u_alternate > 0.5 && mod(idx, 2.0) >= 1.0) ? -1.0 : 1.0;
-  float refractPx = sin(angle) * u_strength * sw * dir;
+  float slatPosX = (px.x + u_offset) / sw;
+  float idxX = floor(slatPosX);
+  float localX = fract(slatPosX) - 0.5;
+  float localY = v_uv.y - 0.5;
 
-  // sample
-  vec2 sampleUV = vec2((px.x + refractPx) / u_canvasSize.x, v_uv.y);
+  float halfFov = clamp(u_curvature, 0.05, 2.0) * PI * 0.5;
+  float angleX = localX * 2.0 * halfFov;
+  float angleY = localY * 2.0 * halfFov;
+  float dir = (u_alternate > 0.5 && mod(idxX, 2.0) >= 1.0) ? -1.0 : 1.0;
+  float sinHalf = max(sin(halfFov), 0.01);
 
-  // map canvas-uv (0..1) to image-uv with "contain" fit
-  float canvasAR = u_canvasSize.x / u_canvasSize.y;
-  float imageAR = u_imageSize.x / u_imageSize.y;
-  vec2 imgUV = sampleUV;
-  if (canvasAR > imageAR) {
-    // canvas wider than image -> letterbox left/right
-    float scale = imageAR / canvasAR;
-    imgUV.x = (sampleUV.x - 0.5) / scale + 0.5;
-  } else {
-    float scale = canvasAR / imageAR;
-    imgUV.y = (sampleUV.y - 0.5) / scale + 0.5;
-  }
+  float refractPx = sin(angleX) / sinHalf * u_strength * sw * dir;
 
-  // outside image -> transparent
-  if (imgUV.x < 0.0 || imgUV.x > 1.0 || imgUV.y < 0.0 || imgUV.y > 1.0) {
-    gl_FragColor = vec4(0.0);
-    return;
-  }
+  float yShape = (u_alternate > 0.5) ? sin(slatPosX * PI) : cos(angleX);
+  float refractPy = -sin(angleY) * yShape / sinHalf
+                    * u_canvasSize.y * 0.15 * yMix;
 
-  vec4 col = texture2D(u_image, imgUV);
+  // refracted UV in canvas space
+  vec2 cuv = vec2(
+    (px.x + refractPx) / u_canvasSize.x,
+    (px.y + refractPy) / u_canvasSize.y
+  );
+  vec2 iuv = fitUV(cuv);
 
-  // subtle dark seam at slat boundary
-  float seam = abs(local) * 2.0;          // 0 center, 1 edges
-  float seamMask = smoothstep(1.0 - u_edgeSoft, 1.0, seam);
-  col.rgb *= 1.0 - seamMask * 0.25;
+  // Zoom: scale UV around image center (>1 zooms in, <1 zooms out)
+  float z = max(u_zoom, 0.05);
+  iuv = (iuv - 0.5) / z + 0.5;
+  iuv = clamp(iuv, 0.0, 1.0);
 
-  gl_FragColor = col;
+  vec3 col = sampleSource(iuv);
+  gl_FragColor = vec4(col, 1.0);
 }
 `;
 
@@ -75,21 +110,37 @@ export interface GlassParams {
   slatWidth: number;
   strength: number;
   offset: number;
-  edgeSoft: number;
+  curvature: number;
+  yCurve: number;
+  zoom: number;
+  frost: number;
   alternate: boolean;
 }
+
+type Source = HTMLImageElement | HTMLVideoElement | ImageBitmap;
 
 export class GlassRenderer {
   private gl: WebGLRenderingContext;
   private program: WebGLProgram;
   private texture: WebGLTexture | null = null;
+  private source: Source | null = null;
   private imageSize: [number, number] = [1, 1];
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
 
   constructor(private canvas: HTMLCanvasElement) {
-    const gl = canvas.getContext("webgl", { premultipliedAlpha: false, preserveDrawingBuffer: true });
+    const attrs: WebGLContextAttributes & { colorSpace?: string } = {
+      premultipliedAlpha: false,
+      preserveDrawingBuffer: true,
+      colorSpace: "display-p3",
+    };
+    const gl = canvas.getContext("webgl", attrs);
     if (!gl) throw new Error("WebGL not supported");
     this.gl = gl;
+    // Prefer P3 output buffer if the browser supports the attribute
+    try {
+      const glAny = gl as unknown as { drawingBufferColorSpace?: string };
+      if ("drawingBufferColorSpace" in glAny) glAny.drawingBufferColorSpace = "display-p3";
+    } catch {}
     this.program = this.buildProgram();
     this.setupGeometry();
     this.cacheUniforms();
@@ -140,44 +191,81 @@ export class GlassRenderer {
       "u_slatWidth",
       "u_strength",
       "u_offset",
-      "u_edgeSoft",
+      "u_curvature",
+      "u_yCurve",
+      "u_zoom",
+      "u_frost",
       "u_alternate",
     ]) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
   }
 
-  setImage(img: HTMLImageElement) {
+  setSource(source: Source) {
     const gl = this.gl;
+    this.source = source;
     if (this.texture) gl.deleteTexture(this.texture);
     const tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     this.texture = tex;
-    this.imageSize = [img.naturalWidth, img.naturalHeight];
-
-    // resize canvas to match image (capped to viewport later by CSS)
-    this.canvas.width = img.naturalWidth;
-    this.canvas.height = img.naturalHeight;
+    let w: number, h: number;
+    if (source instanceof HTMLVideoElement) { w = source.videoWidth; h = source.videoHeight; }
+    else if (source instanceof HTMLImageElement) { w = source.naturalWidth; h = source.naturalHeight; }
+    else { w = source.width; h = source.height; }
+    this.imageSize = [w, h];
+    this.uploadFrame();
+    this.applyFormat();
   }
 
-  resizeToImage() {
-    if (!this.texture) return;
-    this.canvas.width = this.imageSize[0];
-    this.canvas.height = this.imageSize[1];
+  private uploadFrame() {
+    if (!this.source || !this.texture) return;
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.source);
+  }
+
+  private outputAR: number | null = null;
+
+  setOutputAspect(ar: number | null) {
+    this.outputAR = ar;
+    this.applyFormat();
+  }
+
+  private applyFormat() {
+    const [iw, ih] = this.imageSize;
+    if (this.outputAR == null) {
+      this.canvas.width = iw;
+      this.canvas.height = ih;
+    } else {
+      // Pick the largest canvas at the requested aspect that fits within the source resolution
+      const sourceAR = iw / ih;
+      let cw: number, ch: number;
+      if (this.outputAR > sourceAR) {
+        cw = iw;
+        ch = Math.round(iw / this.outputAR);
+      } else {
+        ch = ih;
+        cw = Math.round(ih * this.outputAR);
+      }
+      this.canvas.width = cw;
+      this.canvas.height = ch;
+    }
   }
 
   render(params: GlassParams) {
     const gl = this.gl;
-    if (!this.texture) {
+    if (!this.texture || !this.source) {
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       return;
+    }
+    if (this.source instanceof HTMLVideoElement && this.source.readyState >= 2) {
+      this.uploadFrame();
     }
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.clearColor(0, 0, 0, 0);
@@ -191,7 +279,10 @@ export class GlassRenderer {
     gl.uniform1f(this.uniforms.u_slatWidth!, params.slatWidth);
     gl.uniform1f(this.uniforms.u_strength!, params.strength);
     gl.uniform1f(this.uniforms.u_offset!, params.offset);
-    gl.uniform1f(this.uniforms.u_edgeSoft!, params.edgeSoft);
+    gl.uniform1f(this.uniforms.u_curvature!, params.curvature);
+    gl.uniform1f(this.uniforms.u_yCurve!, params.yCurve);
+    gl.uniform1f(this.uniforms.u_zoom!, params.zoom);
+    gl.uniform1f(this.uniforms.u_frost!, params.frost);
     gl.uniform1f(this.uniforms.u_alternate!, params.alternate ? 1 : 0);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);

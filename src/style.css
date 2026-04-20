@@ -90,6 +90,16 @@ html, body {
   width: 100%;
   accent-color: var(--accent);
 }
+.slider select {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+}
+.slider select:focus { outline: 1px solid var(--accent); }
 
 button {
   background: var(--accent);
@@ -104,6 +114,27 @@ button {
 }
 button:disabled { opacity: 0.35; cursor: not-allowed; }
 button:hover:not(:disabled) { opacity: 0.92; }
+
+.playback {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.playback button {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 8px 12px;
+}
+.playback button.playing {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.playback button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
 
 #stage {
   position: relative;
