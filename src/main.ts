@@ -28,12 +28,21 @@ const params: GlassParams = {
   gradientOn: false,
 };
 
-type Stop = { pos: number; color: string; opacity: number };
+type Stop = { pos: number; color: string };
 let gradientStops: Stop[] = [
-  { pos: 0, color: "#0E8B40", opacity: 1 },
-  { pos: 0.52, color: "#1C461F", opacity: 1 },
-  { pos: 1, color: "#117C08", opacity: 1 },
+  { pos: 0, color: "#0E8B40" },
+  { pos: 0.52, color: "#1C461F" },
+  { pos: 1, color: "#117C08" },
 ];
+
+function normalizeHex(input: string): string | null {
+  let s = input.trim().replace(/^#/, "");
+  if (/^[0-9a-fA-F]{3}$/.test(s)) {
+    s = s.split("").map((c) => c + c).join("");
+  }
+  if (/^[0-9a-fA-F]{6}$/.test(s)) return "#" + s.toUpperCase();
+  return null;
+}
 
 type SliderDef = {
   key: keyof Omit<GlassParams, "alternate" | "gradientOn">;
@@ -598,30 +607,23 @@ gradientCanvas.width = 256;
 gradientCanvas.height = 1;
 const gradientCtx = gradientCanvas.getContext("2d")!;
 
-function hexWithAlpha(hex: string, alpha: number): string {
-  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255);
-  return `${hex}${a.toString(16).padStart(2, "0")}`;
-}
-
 function gradientCssString(): string {
   const sorted = [...gradientStops].sort((a, b) => a.pos - b.pos);
   return sorted
-    .map((s) => `${hexWithAlpha(s.color, s.opacity)} ${(s.pos * 100).toFixed(1)}%`)
+    .map((s) => `${s.color} ${(s.pos * 100).toFixed(1)}%`)
     .join(", ");
 }
 
 function rebuildGradient() {
   const sorted = [...gradientStops].sort((a, b) => a.pos - b.pos);
-  // Texture
   gradientCtx.clearRect(0, 0, 256, 1);
   const grad = gradientCtx.createLinearGradient(0, 0, 256, 0);
   for (const s of sorted) {
-    grad.addColorStop(Math.max(0, Math.min(1, s.pos)), hexWithAlpha(s.color, s.opacity));
+    grad.addColorStop(Math.max(0, Math.min(1, s.pos)), s.color);
   }
   gradientCtx.fillStyle = grad;
   gradientCtx.fillRect(0, 0, 256, 1);
   renderer.setGradient(gradientCanvas);
-  // Visual preview bar
   gradientBar.innerHTML = "";
   const inner = document.createElement("div");
   inner.style.background = `linear-gradient(to right, ${gradientCssString()})`;
@@ -638,11 +640,12 @@ function buildStopRows() {
     row.innerHTML = `
       <input type="number" min="0" max="100" step="1" value="${Math.round(stop.pos * 100)}" />
       <input type="color" value="${stop.color}" />
-      <input type="range" min="0" max="100" step="1" value="${Math.round(stop.opacity * 100)}" />
+      <input type="text" value="${stop.color.replace(/^#/, "")}" maxlength="7" spellcheck="false" />
       <button type="button" title="Remove">×</button>
     `;
-    const [posInp, colorInp, opInp] = row.querySelectorAll("input");
+    const [posInp, colorInp, hexInp] = row.querySelectorAll("input");
     const removeBtn = row.querySelector("button")!;
+
     posInp.addEventListener("input", () => {
       const v = parseFloat((posInp as HTMLInputElement).value);
       if (isFinite(v)) {
@@ -651,15 +654,25 @@ function buildStopRows() {
       }
     });
     colorInp.addEventListener("input", () => {
-      gradientStops[i].color = (colorInp as HTMLInputElement).value;
+      const c = (colorInp as HTMLInputElement).value;
+      gradientStops[i].color = c;
+      (hexInp as HTMLInputElement).value = c.replace(/^#/, "");
       rebuildGradient();
     });
-    opInp.addEventListener("input", () => {
-      gradientStops[i].opacity = parseFloat((opInp as HTMLInputElement).value) / 100;
-      rebuildGradient();
-    });
+    const applyHex = () => {
+      const norm = normalizeHex((hexInp as HTMLInputElement).value);
+      if (norm) {
+        gradientStops[i].color = norm;
+        (colorInp as HTMLInputElement).value = norm;
+        (hexInp as HTMLInputElement).value = norm.replace(/^#/, "");
+        rebuildGradient();
+      }
+    };
+    hexInp.addEventListener("change", applyHex);
+    hexInp.addEventListener("paste", () => setTimeout(applyHex, 0));
+
     removeBtn.addEventListener("click", () => {
-      if (gradientStops.length <= 2) return;  // keep at least 2 stops
+      if (gradientStops.length <= 2) return;
       gradientStops.splice(i, 1);
       buildStopRows();
       rebuildGradient();
@@ -674,7 +687,7 @@ addStopBtn.addEventListener("click", () => {
   const last = sorted[sorted.length - 1];
   const prev = sorted[sorted.length - 2];
   const newPos = prev ? (prev.pos + last.pos) / 2 : 0.5;
-  gradientStops.push({ pos: newPos, color: "#FFFFFF", opacity: 1 });
+  gradientStops.push({ pos: newPos, color: "#FFFFFF" });
   buildStopRows();
   rebuildGradient();
 });
@@ -723,20 +736,15 @@ function applyParamsString(str: string): boolean {
     gradientToggle.checked = obj.gradientOn;
   }
   if (Array.isArray(obj.gradientStops)) {
-    const valid = obj.gradientStops
-      .filter(
-        (s: unknown): s is Stop =>
-          !!s &&
-          typeof s === "object" &&
-          typeof (s as Stop).pos === "number" &&
-          typeof (s as Stop).color === "string" &&
-          typeof (s as Stop).opacity === "number"
-      )
-      .map((s: Stop) => ({
-        pos: Math.max(0, Math.min(1, s.pos)),
-        color: s.color,
-        opacity: Math.max(0, Math.min(1, s.opacity)),
-      }));
+    const valid: Stop[] = [];
+    for (const raw of obj.gradientStops) {
+      if (!raw || typeof raw !== "object") continue;
+      const r = raw as { pos?: unknown; color?: unknown };
+      if (typeof r.pos !== "number" || typeof r.color !== "string") continue;
+      const norm = normalizeHex(r.color);
+      if (!norm) continue;
+      valid.push({ pos: Math.max(0, Math.min(1, r.pos)), color: norm });
+    }
     if (valid.length >= 2) {
       gradientStops = valid;
       buildStopRows();

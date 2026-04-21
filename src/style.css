@@ -155,7 +155,8 @@ button:hover:not(:disabled) { opacity: 0.92; }
   align-items: center;
 }
 .stop-row input[type="number"],
-.stop-row input[type="color"] {
+.stop-row input[type="color"],
+.stop-row input[type="text"] {
   background: var(--bg);
   border: 1px solid var(--line);
   color: var(--text);
@@ -169,8 +170,9 @@ button:hover:not(:disabled) { opacity: 0.92; }
   padding: 2px;
   cursor: pointer;
 }
-.stop-row input[type="range"] {
-  accent-color: var(--accent);
+.stop-row input[type="text"] {
+  font-family: ui-monospace, "SF Mono", monospace;
+  text-transform: uppercase;
 }
 .stop-row button {
   background: transparent;
