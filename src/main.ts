@@ -15,6 +15,17 @@ const speedVal = document.getElementById("speedVal") as HTMLSpanElement;
 const formatSelect = document.getElementById("formatSelect") as HTMLSelectElement;
 const exportFormatSelect = document.getElementById("exportFormatSelect") as HTMLSelectElement;
 const exportResSelect = document.getElementById("exportResSelect") as HTMLSelectElement;
+const exportPngBtn = document.getElementById("exportPngBtn") as HTMLButtonElement;
+const exportMovBtn = document.getElementById("exportMovBtn") as HTMLButtonElement;
+exportPngBtn.disabled = true;
+exportMovBtn.disabled = true;
+
+function setSourceLoaded() {
+  exportBtn.disabled = false;
+  playBtn.disabled = false;
+  exportPngBtn.disabled = false;
+  exportMovBtn.disabled = false;
+}
 
 const renderer = new GlassRenderer(canvas);
 
@@ -135,50 +146,60 @@ const sliderInputs: Partial<Record<keyof GlassParams, HTMLInputElement>> = {};
 const sliderValEls: Partial<Record<keyof GlassParams, HTMLSpanElement>> = {};
 let alternateInput: HTMLInputElement | null = null;
 
-function buildSliders() {
-  for (const def of sliderDefs) {
-    const wrap = document.createElement("div");
-    wrap.className = "slider";
-    wrap.innerHTML = `
-      <div class="row">
-        <label>${def.label}</label>
-        <span class="val"></span>
-      </div>
-      <input type="range" min="${def.min}" max="${def.max}" step="${def.step}" value="${params[def.key]}" />
-    `;
-    const input = wrap.querySelector("input") as HTMLInputElement;
-    const val = wrap.querySelector(".val") as HTMLSpanElement;
-    sliderInputs[def.key] = input;
-    sliderValEls[def.key] = val;
-    const updateLabel = () => {
-      const v = parseFloat(input.value);
-      val.textContent = def.format ? def.format(v) : v.toString();
-    };
-    updateLabel();
-    input.addEventListener("input", () => {
-      params[def.key] = parseFloat(input.value);
-      updateLabel();
-      schedule();
-    });
-    slidersEl.appendChild(wrap);
-  }
-
-  const altWrap = document.createElement("div");
-  altWrap.className = "slider";
-  altWrap.innerHTML = `
-    <div class="row">
-      <label>Alternate slats</label>
+function renderSliderRow(def: SliderDef): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "slider";
+  wrap.innerHTML = `
+    <div class="slider-head">
+      <span class="slider-label">${def.label}</span>
+      <span class="slider-val"></span>
     </div>
-    <input type="checkbox" />
+    <div class="slider-row">
+      <input type="range" min="${def.min}" max="${def.max}" step="${def.step}" value="${params[def.key]}" />
+    </div>
   `;
-  const altInput = altWrap.querySelector("input") as HTMLInputElement;
-  altInput.checked = params.alternate;
-  altInput.addEventListener("change", () => {
-    params.alternate = altInput.checked;
+  const input = wrap.querySelector("input") as HTMLInputElement;
+  const val = wrap.querySelector(".slider-val") as HTMLSpanElement;
+  sliderInputs[def.key] = input;
+  sliderValEls[def.key] = val;
+  const updateLabel = () => {
+    const v = parseFloat(input.value);
+    val.textContent = def.format ? def.format(v) : v.toString();
+  };
+  updateLabel();
+  input.addEventListener("input", () => {
+    params[def.key] = parseFloat(input.value);
+    updateLabel();
     schedule();
   });
-  alternateInput = altInput;
-  slidersEl.appendChild(altWrap);
+  return wrap;
+}
+
+function renderAlternateCheckbox(): HTMLElement {
+  const wrap = document.createElement("label");
+  wrap.className = "check-row";
+  wrap.innerHTML = `
+    <input type="checkbox" />
+    <span class="check-box"></span>
+    <span>Alternate Slats</span>
+  `;
+  const input = wrap.querySelector("input") as HTMLInputElement;
+  input.checked = params.alternate;
+  input.addEventListener("change", () => {
+    params.alternate = input.checked;
+    schedule();
+  });
+  alternateInput = input;
+  return wrap;
+}
+
+function buildSliders() {
+  for (const def of sliderDefs) {
+    slidersEl.appendChild(renderSliderRow(def));
+    if (def.key === "slatWidth") {
+      slidersEl.appendChild(renderAlternateCheckbox());
+    }
+  }
 }
 
 let frame = 0;
@@ -243,19 +264,20 @@ const updateSpeedLabel = () => {
 speedSlider.addEventListener("input", updateSpeedLabel);
 updateSpeedLabel();
 
-function parseFormat(val: string): { w: number; h: number } | null {
-  if (!val) return null;
-  const m = val.match(/^(\d+)x(\d+)$/);
-  if (!m) return null;
-  return { w: parseInt(m[1], 10), h: parseInt(m[2], 10) };
+// Canvas size inputs (left sidebar) drive the on-screen working canvas
+const canvasWInp = document.getElementById("canvasW") as HTMLInputElement;
+const canvasHInp = document.getElementById("canvasH") as HTMLInputElement;
+function applyCanvasSize() {
+  const w = parseInt(canvasWInp.value, 10);
+  const h = parseInt(canvasHInp.value, 10);
+  if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+    renderer.setOutputSize({ w, h });
+    schedule();
+  }
 }
-
-renderer.setOutputSize(parseFormat(formatSelect.value));
-
-formatSelect.addEventListener("change", () => {
-  renderer.setOutputSize(parseFormat(formatSelect.value));
-  schedule();
-});
+applyCanvasSize();
+canvasWInp.addEventListener("input", applyCanvasSize);
+canvasHInp.addEventListener("input", applyCanvasSize);
 
 // ---- Source loading (image or video) ----
 let currentVideo: HTMLVideoElement | null = null;
@@ -276,8 +298,7 @@ function loadFile(file: File) {
       renderer.setSource(bitmap);
       [params.lumMin, params.lumMax] = computeLumRange(bitmap);
       canvas.classList.add("has-image");
-      exportBtn.disabled = false;
-      playBtn.disabled = false;
+      setSourceLoaded();
       schedule();
     }).catch(() => {
       const url = URL.createObjectURL(file);
@@ -286,8 +307,7 @@ function loadFile(file: File) {
         renderer.setSource(img);
         [params.lumMin, params.lumMax] = computeLumRange(img);
         canvas.classList.add("has-image");
-        exportBtn.disabled = false;
-        playBtn.disabled = false;
+        setSourceLoaded();
         URL.revokeObjectURL(url);
         schedule();
       };
@@ -307,8 +327,7 @@ function loadFile(file: File) {
       renderer.setSource(video);
       [params.lumMin, params.lumMax] = computeLumRange(video);
       canvas.classList.add("has-image");
-      exportBtn.disabled = false;
-      playBtn.disabled = false;
+      setSourceLoaded();
       schedule();
     }, { once: true });
   }
@@ -695,16 +714,26 @@ async function exportViaWebCodecs(fmt: ExportFormat) {
   }
 }
 
-exportBtn.addEventListener("click", async () => {
-  const fmtId = exportFormatSelect.value;
-  const fmt = exportFormats.find((f) => f.id === fmtId);
-  if (!fmt) return;
-  if (fmt.id === "png") return exportPng();
-  // Offline WebCodecs path: guarantees 60fps at any resolution
+async function runExport(id: "png" | "mov") {
+  if (id === "png") return exportPng();
+  const fmt =
+    exportFormats.find((f) => f.id === "mov") ??
+    exportFormats.find((f) => f.id === "mp4");
+  if (!fmt) {
+    alert("Video export isn't supported in this browser.");
+    return;
+  }
   if (supportsWebCodecs() && fmt.container !== "webm") {
     return exportViaWebCodecs(fmt);
   }
   await exportLoop(fmt);
+}
+
+exportPngBtn.addEventListener("click", () => {
+  if (!exportPngBtn.disabled) runExport("png");
+});
+exportMovBtn.addEventListener("click", () => {
+  if (!exportMovBtn.disabled) runExport("mov");
 });
 
 buildSliders();
@@ -719,8 +748,7 @@ buildSliders();
     renderer.setSource(bitmap);
     [params.lumMin, params.lumMax] = computeLumRange(bitmap);
     canvas.classList.add("has-image");
-    exportBtn.disabled = false;
-    playBtn.disabled = false;
+    setSourceLoaded();
     schedule();
   } catch {}
 })();

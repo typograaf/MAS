@@ -3,103 +3,132 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MAS — Glass Overlay</title>
+    <title>MAS — Image Background Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
+    <input type="file" id="fileInput" accept="image/*,video/*" hidden />
+
     <div id="app">
-      <aside id="controls">
-        <header>
-          <h1>MAS</h1>
-          <p>Glass overlay generator</p>
-        </header>
+      <!-- LEFT SIDEBAR -->
+      <aside class="sidebar sidebar-left">
+        <div class="sidebar-top">
+          <header class="brand">
+            <img src="/icons/mas-logo.svg" alt="MAS" class="brand-logo" />
+            <div class="brand-sub">Image<br />Background<br />Engine</div>
+          </header>
 
-        <section class="drop-zone" id="dropZone">
-          <p>Drop image or video<br /><span>or click to choose</span></p>
-          <input type="file" id="fileInput" accept="image/*,video/*" hidden />
-        </section>
-
-        <div class="slider">
-          <div class="row">
-            <label>Format</label>
-          </div>
-          <select id="formatSelect">
-            <option value="1920x1080" selected>1920 × 1080 (HD)</option>
-            <option value="3840x2160">3840 × 2160 (4K)</option>
-            <option value="1080x1080">1080 × 1080 (Square)</option>
-            <option value="1080x1920">1080 × 1920 (Story)</option>
-            <option value="1080x1350">1080 × 1350 (Portrait)</option>
-            <option value="2560x1080">2560 × 1080 (Cinema)</option>
-            <option value="">Original size</option>
-          </select>
-        </div>
-
-        <section class="sliders" id="sliders"></section>
-
-        <section class="gradient">
-          <div class="row">
-            <label>
-              <input type="checkbox" id="gradientToggle" />
-              Gradient map
-            </label>
-          </div>
-          <div class="gradient-bar" id="gradientBar"></div>
-          <div class="gradient-stops" id="gradientStops"></div>
-          <button id="addStopBtn" type="button">+ Add stop</button>
-        </section>
-
-        <section class="gradient">
-          <div class="row">
-            <label>
-              <input type="checkbox" id="strengthToggle" />
-              Strength gradient
-            </label>
-          </div>
-          <div class="gradient-bar" id="strengthBar"></div>
-          <div class="gradient-stops" id="strengthStops"></div>
-          <button id="addStrengthStopBtn" type="button">+ Add stop</button>
-        </section>
-
-        <section class="presets">
-          <button id="copySettingsBtn">Copy settings</button>
-          <button id="pasteSettingsBtn">Paste settings</button>
-        </section>
-
-        <section class="playback">
-          <button id="playBtn" disabled>Play</button>
-          <div class="slider">
-            <div class="row">
-              <label>Speed</label>
-              <span class="val" id="speedVal">60 px/s</span>
+          <section class="group">
+            <label class="group-title">Canvas Size</label>
+            <div class="seg2">
+              <input type="number" id="canvasW" value="1920" min="16" step="1" />
+              <input type="number" id="canvasH" value="1080" min="16" step="1" />
             </div>
-            <input type="range" id="speedSlider" min="-300" max="300" step="1" value="60" />
-          </div>
-        </section>
+          </section>
 
-        <div class="slider">
-          <div class="row">
-            <label>Export format</label>
-          </div>
-          <select id="exportFormatSelect"></select>
+          <section class="group" id="slidersGroup">
+            <section class="sliders" id="sliders"></section>
+          </section>
+
+          <section class="group">
+            <label class="check-row">
+              <input type="checkbox" id="gradientToggle" />
+              <span class="check-box"></span>
+              <span>Gradient Map</span>
+            </label>
+            <div class="gradient-bar" id="gradientBar"></div>
+            <div class="gradient-stops" id="gradientStops"></div>
+            <button type="button" id="addStopBtn" class="surface-btn btn-plus">
+              <span class="plus-icon"></span> Add Stop
+            </button>
+          </section>
         </div>
-        <div class="slider">
-          <div class="row">
-            <label>Export resolution</label>
-          </div>
-          <select id="exportResSelect">
-            <option value="1280">720p (faster)</option>
-            <option value="1920" selected>1080p</option>
-            <option value="2560">1440p</option>
-            <option value="3840">4K (slower)</option>
-          </select>
-        </div>
-        <button id="exportBtn" disabled>Export</button>
+
+        <a href="https://typograaf.be" target="_blank" rel="noopener" class="typograaf">
+          <img src="/icons/typograaf.svg" alt="typograaf" />
+        </a>
       </aside>
 
-      <main id="stage">
+      <!-- STAGE / CANVAS -->
+      <main class="stage" id="stage">
         <canvas id="canvas"></canvas>
-        <div id="placeholder">Drop a photo to begin</div>
+        <div class="stage-overlay" id="dropZone">
+          <div class="stage-overlay-msg">Drop image or video</div>
+        </div>
       </main>
+
+      <!-- RIGHT SIDEBAR -->
+      <aside class="sidebar sidebar-right">
+        <div class="brand brand-placeholder" aria-hidden="true">
+          <img src="/icons/mas-logo.svg" alt="" class="brand-logo" />
+          <div class="brand-sub">Image<br />Background<br />Engine</div>
+        </div>
+
+        <section class="group">
+          <label class="group-title">Export Size</label>
+          <div class="seg2">
+            <input type="number" id="exportW" value="1920" min="16" step="1" />
+            <input type="number" id="exportH" value="1080" min="16" step="1" />
+          </div>
+        </section>
+
+        <section class="group">
+          <label class="check-row">
+            <input type="checkbox" id="strengthToggle" />
+            <span class="check-box"></span>
+            <span>Strength Gradient</span>
+          </label>
+          <div class="gradient-bar" id="strengthBar"></div>
+          <div class="gradient-stops" id="strengthStops"></div>
+          <button type="button" id="addStrengthStopBtn" class="surface-btn btn-plus">
+            <span class="plus-icon"></span> Add Stop
+          </button>
+        </section>
+
+        <section class="group">
+          <label class="group-title">Settings</label>
+          <div class="seg2">
+            <button type="button" class="surface-btn" id="copySettingsBtn">Copy Settings</button>
+            <button type="button" class="surface-btn" id="pasteSettingsBtn">Paste Settings</button>
+          </div>
+        </section>
+
+        <section class="group">
+          <div class="slider-head">
+            <span class="slider-label">Speed</span>
+            <span class="slider-val" id="speedVal">60 px/s</span>
+          </div>
+          <div class="slider-row">
+            <input type="range" id="speedSlider" min="-300" max="300" step="1" value="60" />
+          </div>
+          <button type="button" class="surface-btn play-btn" id="playBtn" disabled>Play</button>
+        </section>
+
+        <section class="group">
+          <label class="group-title">Export</label>
+          <div class="seg2">
+            <button type="button" class="surface-btn" id="exportMovBtn">MOV</button>
+            <button type="button" class="surface-btn" id="exportPngBtn">PNG</button>
+          </div>
+        </section>
+
+        <!-- Hidden legacy controls that main.ts still reads -->
+        <select id="formatSelect" hidden>
+          <option value="1920x1080" selected>1920 × 1080</option>
+        </select>
+        <select id="exportFormatSelect" hidden></select>
+        <select id="exportResSelect" hidden>
+          <option value="1920" selected>1080p</option>
+        </select>
+        <button id="exportBtn" hidden></button>
+      </aside>
     </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
