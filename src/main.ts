@@ -286,11 +286,11 @@ document.addEventListener("keydown", (e) => {
 });
 
 // Scroll on the preview to visually zoom the canvas (CSS scale, not shader zoom).
-// Clamped to [1, 5] — at 1 the canvas boundaries align with the stage edges;
-// above 1 it overflows and the stage's overflow:hidden crops the view.
+// Max zoom-in is when canvas boundaries touch the stage (scale 1); scrolling
+// down shrinks the preview within the stage.
 const stageEl = document.getElementById("stage") as HTMLElement;
-const PREVIEW_MIN = 1;
-const PREVIEW_MAX = 5;
+const PREVIEW_MIN = 0.1;
+const PREVIEW_MAX = 1;
 let previewScale = 1;
 function applyPreviewScale() {
   canvas.style.transform = `scale(${previewScale})`;
