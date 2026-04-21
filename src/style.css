@@ -154,6 +154,9 @@ button:hover:not(:disabled) { opacity: 0.92; }
   gap: 6px;
   align-items: center;
 }
+.stop-row.strength-row {
+  grid-template-columns: 1fr 1fr 22px;
+}
 .stop-row input[type="number"],
 .stop-row input[type="text"] {
   background: var(--bg);

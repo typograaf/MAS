@@ -27,6 +27,8 @@ uniform sampler2D u_gradient;
 uniform float u_gradientOn;
 uniform float u_lumMin;
 uniform float u_lumMax;
+uniform sampler2D u_strengthMask;
+uniform float u_strengthMaskOn;
 
 varying vec2 v_uv;
 
@@ -53,13 +55,12 @@ float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
-vec3 sampleSource(vec2 uv) {
-  if (u_frost < 0.002) {
+vec3 sampleSource(vec2 uv, float frost) {
+  if (frost < 0.002) {
     return texture2D(u_image, clamp(uv, 0.0, 1.0)).rgb;
   }
-  // Frosted glass: average jittered samples in a disk
   vec3 sum = vec3(0.0);
-  float radius = u_frost * 0.025;
+  float radius = frost * 0.025;
   for (int i = 0; i < 12; i++) {
     float fi = float(i);
     float a = hash(uv * 13.7 + fi) * 6.2831;
@@ -73,21 +74,31 @@ vec3 sampleSource(vec2 uv) {
 void main() {
   vec2 px = v_uv * u_canvasSize;
 
+  // Per-pixel effect strength multiplier — horizontal grayscale mask
+  float mul = 1.0;
+  if (u_strengthMaskOn > 0.5) {
+    mul = texture2D(u_strengthMask, vec2(v_uv.x, 0.5)).r;
+  }
+  float effStrength  = u_strength  * mul;
+  float effCurvature = u_curvature * mul;
+  float effYCurve    = u_yCurve    * mul;
+  float effFrost     = u_frost     * mul;
+
   float sw = max(u_slatWidth, 1.0);
-  float yMix = clamp(u_yCurve, 0.0, 1.0);
+  float yMix = clamp(effYCurve, 0.0, 1.0);
 
   float slatPosX = (px.x + u_offset) / sw;
   float idxX = floor(slatPosX);
   float localX = fract(slatPosX) - 0.5;
   float localY = v_uv.y - 0.5;
 
-  float halfFov = clamp(u_curvature, 0.05, 2.0) * PI * 0.5;
+  float halfFov = clamp(effCurvature, 0.05, 2.0) * PI * 0.5;
   float angleX = localX * 2.0 * halfFov;
   float angleY = localY * 2.0 * halfFov;
   float dir = (u_alternate > 0.5 && mod(idxX, 2.0) >= 1.0) ? -1.0 : 1.0;
   float sinHalf = max(sin(halfFov), 0.01);
 
-  float refractPx = sin(angleX) / sinHalf * u_strength * sw * dir;
+  float refractPx = sin(angleX) / sinHalf * effStrength * sw * dir;
 
   float yShape = (u_alternate > 0.5) ? sin(slatPosX * PI) : cos(angleX);
   float refractPy = -sin(angleY) * yShape / sinHalf
@@ -105,7 +116,7 @@ void main() {
   iuv = (iuv - 0.5) / z + 0.5;
   iuv = clamp(iuv, 0.0, 1.0);
 
-  vec3 col = sampleSource(iuv);
+  vec3 col = sampleSource(iuv, effFrost);
 
   if (u_gradientOn > 0.5) {
     float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
@@ -132,6 +143,7 @@ export interface GlassParams {
   gradientOn: boolean;
   lumMin: number;
   lumMax: number;
+  strengthMaskOn: boolean;
 }
 
 type Source = HTMLImageElement | HTMLVideoElement | ImageBitmap;
@@ -144,6 +156,7 @@ export class GlassRenderer {
   private imageSize: [number, number] = [1, 1];
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
   private gradientTex: WebGLTexture | null = null;
+  private strengthMaskTex: WebGLTexture | null = null;
 
   constructor(private canvas: HTMLCanvasElement) {
     const attrs: WebGLContextAttributes & { colorSpace?: string } = {
@@ -218,6 +231,8 @@ export class GlassRenderer {
       "u_gradientOn",
       "u_lumMin",
       "u_lumMax",
+      "u_strengthMask",
+      "u_strengthMaskOn",
     ]) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
@@ -255,6 +270,18 @@ export class GlassRenderer {
     const gl = this.gl;
     if (!this.gradientTex) this.gradientTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.gradientTex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  }
+
+  setStrengthMask(canvas: HTMLCanvasElement) {
+    const gl = this.gl;
+    if (!this.strengthMaskTex) this.strengthMaskTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.strengthMaskTex);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -318,6 +345,15 @@ export class GlassRenderer {
     }
     gl.uniform1f(this.uniforms.u_lumMin!, params.lumMin);
     gl.uniform1f(this.uniforms.u_lumMax!, params.lumMax);
+
+    if (this.strengthMaskTex && params.strengthMaskOn) {
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, this.strengthMaskTex);
+      gl.uniform1i(this.uniforms.u_strengthMask!, 2);
+      gl.uniform1f(this.uniforms.u_strengthMaskOn!, 1);
+    } else {
+      gl.uniform1f(this.uniforms.u_strengthMaskOn!, 0);
+    }
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }

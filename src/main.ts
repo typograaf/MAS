@@ -30,7 +30,14 @@ const params: GlassParams = {
   gradientOn: true,
   lumMin: 0,
   lumMax: 1,
+  strengthMaskOn: false,
 };
+
+type StrengthStop = { pos: number; value: number };
+let strengthStops: StrengthStop[] = [
+  { pos: 0, value: 0 },
+  { pos: 1, value: 1 },
+];
 
 function computeLumRange(source: CanvasImageSource): [number, number] {
   const SIZE = 256;
@@ -106,7 +113,7 @@ function normalizeHex(input: string): string | null {
 }
 
 type SliderDef = {
-  key: keyof Omit<GlassParams, "alternate" | "gradientOn">;
+  key: keyof Omit<GlassParams, "alternate" | "gradientOn" | "strengthMaskOn">;
   label: string;
   min: number;
   max: number;
@@ -936,6 +943,156 @@ gradientToggle.addEventListener("change", () => {
 buildStopRows();
 rebuildGradient();
 
+// ---- Strength gradient (effect mask) ----
+const strengthToggle = document.getElementById("strengthToggle") as HTMLInputElement;
+const strengthBar = document.getElementById("strengthBar") as HTMLDivElement;
+const strengthStopsEl = document.getElementById("strengthStops") as HTMLDivElement;
+const addStrengthStopBtn = document.getElementById("addStrengthStopBtn") as HTMLButtonElement;
+
+const strengthCanvas = document.createElement("canvas");
+strengthCanvas.width = 256;
+strengthCanvas.height = 1;
+const strengthCtx = strengthCanvas.getContext("2d")!;
+
+function strengthCssString(): string {
+  return [...strengthStops]
+    .sort((a, b) => a.pos - b.pos)
+    .map((s) => {
+      const v = Math.round(Math.max(0, Math.min(1, s.value)) * 255);
+      return `rgb(${v},${v},${v}) ${(s.pos * 100).toFixed(1)}%`;
+    })
+    .join(", ");
+}
+
+function rebuildStrengthMask() {
+  const sorted = [...strengthStops].sort((a, b) => a.pos - b.pos);
+  strengthCtx.clearRect(0, 0, 256, 1);
+  const grad = strengthCtx.createLinearGradient(0, 0, 256, 0);
+  for (const s of sorted) {
+    const v = Math.round(Math.max(0, Math.min(1, s.value)) * 255);
+    grad.addColorStop(Math.max(0, Math.min(1, s.pos)), `rgb(${v},${v},${v})`);
+  }
+  strengthCtx.fillStyle = grad;
+  strengthCtx.fillRect(0, 0, 256, 1);
+  renderer.setStrengthMask(strengthCanvas);
+  strengthBar.innerHTML = "";
+  const inner = document.createElement("div");
+  inner.style.background = `linear-gradient(to right, ${strengthCssString()})`;
+  strengthBar.appendChild(inner);
+  schedule();
+}
+
+function sortAndRebuildStrengthRows() {
+  const active = document.activeElement as HTMLInputElement | null;
+  let focusedStop: StrengthStop | null = null;
+  let focusedField: "pos" | "val" | null = null;
+  if (active && active.tagName === "INPUT") {
+    const row = active.closest(".stop-row");
+    if (row) {
+      const idx = Array.from(strengthStopsEl.children).indexOf(row);
+      if (idx >= 0) focusedStop = strengthStops[idx];
+      const inputs = Array.from(row.querySelectorAll("input"));
+      focusedField = inputs.indexOf(active) === 0 ? "pos" : "val";
+    }
+  }
+  const before = strengthStops.slice();
+  strengthStops.sort((a, b) => a.pos - b.pos);
+  const orderChanged = strengthStops.some((s, i) => s !== before[i]);
+  if (orderChanged) {
+    buildStrengthRows();
+    if (focusedStop && focusedField) {
+      const newIdx = strengthStops.indexOf(focusedStop);
+      if (newIdx >= 0) {
+        const newRow = strengthStopsEl.children[newIdx];
+        const inputs = newRow?.querySelectorAll("input");
+        const target = inputs?.[focusedField === "pos" ? 0 : 1] as HTMLInputElement | undefined;
+        target?.focus();
+      }
+    }
+  }
+  rebuildStrengthMask();
+}
+
+function buildStrengthRows() {
+  strengthStopsEl.innerHTML = "";
+  for (const stop of strengthStops) {
+    const row = document.createElement("div");
+    row.className = "stop-row strength-row";
+    row.innerHTML = `
+      <input type="number" min="0" max="100" step="1" value="${Math.round(stop.pos * 100)}" />
+      <input type="number" min="0" max="100" step="1" value="${Math.round(stop.value * 100)}" />
+      <button type="button" class="remove-stop" title="Remove">×</button>
+    `;
+    const [posInp, valInp] = row.querySelectorAll('input[type="number"]') as NodeListOf<HTMLInputElement>;
+    const removeBtn = row.querySelector(".remove-stop") as HTMLButtonElement;
+
+    posInp.addEventListener("input", () => {
+      const v = parseFloat(posInp.value);
+      if (isFinite(v)) {
+        stop.pos = Math.max(0, Math.min(1, v / 100));
+        sortAndRebuildStrengthRows();
+      }
+    });
+    posInp.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      e.preventDefault();
+      const step = e.shiftKey ? 10 : 1;
+      const cur = parseFloat(posInp.value) || 0;
+      const dir = e.key === "ArrowUp" ? 1 : -1;
+      const next = Math.max(0, Math.min(100, cur + step * dir));
+      posInp.value = String(next);
+      stop.pos = next / 100;
+      sortAndRebuildStrengthRows();
+    });
+
+    valInp.addEventListener("input", () => {
+      const v = parseFloat(valInp.value);
+      if (isFinite(v)) {
+        stop.value = Math.max(0, Math.min(1, v / 100));
+        rebuildStrengthMask();
+      }
+    });
+    valInp.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      e.preventDefault();
+      const step = e.shiftKey ? 10 : 1;
+      const cur = parseFloat(valInp.value) || 0;
+      const dir = e.key === "ArrowUp" ? 1 : -1;
+      const next = Math.max(0, Math.min(100, cur + step * dir));
+      valInp.value = String(next);
+      stop.value = next / 100;
+      rebuildStrengthMask();
+    });
+
+    removeBtn.addEventListener("click", () => {
+      if (strengthStops.length <= 2) return;
+      strengthStops = strengthStops.filter((s) => s !== stop);
+      buildStrengthRows();
+      rebuildStrengthMask();
+    });
+    strengthStopsEl.appendChild(row);
+  }
+}
+
+addStrengthStopBtn.addEventListener("click", () => {
+  const sorted = [...strengthStops].sort((a, b) => a.pos - b.pos);
+  const last = sorted[sorted.length - 1];
+  const prev = sorted[sorted.length - 2];
+  const newPos = prev ? (prev.pos + last.pos) / 2 : 0.5;
+  strengthStops.push({ pos: newPos, value: 1 });
+  buildStrengthRows();
+  rebuildStrengthMask();
+});
+
+strengthToggle.checked = params.strengthMaskOn;
+strengthToggle.addEventListener("change", () => {
+  params.strengthMaskOn = strengthToggle.checked;
+  schedule();
+});
+
+buildStrengthRows();
+rebuildStrengthMask();
+
 schedule();
 
 // ---- Copy / paste settings ----
@@ -970,6 +1127,27 @@ function applyParamsString(str: string): boolean {
     params.gradientOn = obj.gradientOn;
     gradientToggle.checked = obj.gradientOn;
   }
+  if (typeof obj.strengthMaskOn === "boolean") {
+    params.strengthMaskOn = obj.strengthMaskOn;
+    strengthToggle.checked = obj.strengthMaskOn;
+  }
+  if (Array.isArray(obj.strengthStops)) {
+    const valid: StrengthStop[] = [];
+    for (const raw of obj.strengthStops) {
+      if (!raw || typeof raw !== "object") continue;
+      const r = raw as { pos?: unknown; value?: unknown };
+      if (typeof r.pos !== "number" || typeof r.value !== "number") continue;
+      valid.push({
+        pos: Math.max(0, Math.min(1, r.pos)),
+        value: Math.max(0, Math.min(1, r.value)),
+      });
+    }
+    if (valid.length >= 2) {
+      strengthStops = valid;
+      buildStrengthRows();
+      rebuildStrengthMask();
+    }
+  }
   if (Array.isArray(obj.gradientStops)) {
     const valid: Stop[] = [];
     for (const raw of obj.gradientStops) {
@@ -997,7 +1175,7 @@ async function flashButton(btn: HTMLButtonElement, msg: string, ms = 900) {
 }
 
 copySettingsBtn.addEventListener("click", async () => {
-  const str = JSON.stringify({ ...params, gradientStops });
+  const str = JSON.stringify({ ...params, gradientStops, strengthStops });
   try {
     await navigator.clipboard.writeText(str);
     flashButton(copySettingsBtn, "Copied!");
