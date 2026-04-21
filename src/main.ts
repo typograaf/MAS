@@ -33,25 +33,58 @@ const params: GlassParams = {
 };
 
 function computeLumRange(source: CanvasImageSource): [number, number] {
-  const SIZE = 128;
+  const SIZE = 256;
   const c = document.createElement("canvas");
   c.width = SIZE;
   c.height = SIZE;
-  const ctx = c.getContext("2d", { willReadFrequently: true } as CanvasRenderingContext2DSettings);
+  // P3 sample canvas matches what the WebGL shader sees
+  const ctx = c.getContext("2d", {
+    colorSpace: "display-p3",
+    willReadFrequently: true,
+  } as CanvasRenderingContext2DSettings);
   if (!ctx) return [0, 1];
+  ctx.imageSmoothingEnabled = false;
   try {
     ctx.drawImage(source, 0, 0, SIZE, SIZE);
-    const data = ctx.getImageData(0, 0, SIZE, SIZE).data;
-    let min = 1, max = 0;
+    const data = ctx.getImageData(0, 0, SIZE, SIZE, {
+      colorSpace: "display-p3",
+    } as ImageDataSettings).data;
+
+    // Build a luminance histogram and stretch using 1st / 99th percentile,
+    // so a handful of outlier pixels don't pin the range to 0..1.
+    const hist = new Uint32Array(256);
+    let total = 0;
     for (let i = 0; i < data.length; i += 4) {
       const lum =
-        (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
-      if (lum < min) min = lum;
-      if (lum > max) max = lum;
+        0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+      hist[Math.min(255, Math.max(0, Math.round(lum)))]++;
+      total++;
     }
-    if (max - min < 0.005) max = Math.min(1, min + 0.005);
+    const lowTarget = total * 0.01;
+    const highTarget = total * 0.99;
+    let cumulative = 0;
+    let minBin = 0;
+    let maxBin = 255;
+    let minSet = false;
+    for (let i = 0; i < 256; i++) {
+      cumulative += hist[i];
+      if (!minSet && cumulative >= lowTarget) {
+        minBin = i;
+        minSet = true;
+      }
+      if (cumulative >= highTarget) {
+        maxBin = i;
+        break;
+      }
+    }
+
+    let min = minBin / 255;
+    let max = maxBin / 255;
+    if (max - min < 0.02) max = Math.min(1, min + 0.02);
+    console.log("[lumRange]", min.toFixed(3), "→", max.toFixed(3));
     return [min, max];
-  } catch {
+  } catch (e) {
+    console.warn("[lumRange] failed:", e);
     return [0, 1];
   }
 }
