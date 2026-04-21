@@ -494,7 +494,11 @@ async function exportViaWebCodecs(fmt: ExportFormat) {
   const mirror = document.createElement("canvas");
   mirror.width = outW;
   mirror.height = outH;
-  const ctx = mirror.getContext("2d");
+  // P3 mirror canvas so drawImage from the P3 WebGL canvas doesn't convert to sRGB
+  const ctx = mirror.getContext(
+    "2d",
+    { colorSpace: "display-p3" } as CanvasRenderingContext2DSettings
+  );
   if (!ctx) return;
 
   const muxer = new Muxer({
@@ -503,9 +507,28 @@ async function exportViaWebCodecs(fmt: ExportFormat) {
     fastStart: "in-memory",
   });
 
+  // P3 color space tag — mp4-muxer writes the 'colr' box when decoderConfig
+  // has colorSpace. smpte432 = Display P3 primaries, iec61966-2-1 = sRGB transfer.
+  // `smpte432` isn't in lib.dom's restrictive type yet, so cast.
+  const p3ColorSpace = {
+    primaries: "smpte432",
+    transfer: "iec61966-2-1",
+    matrix: "bt709",
+    fullRange: true,
+  } as unknown as VideoColorSpaceInit;
+
   let encoderErrored = false;
   const encoder = new VideoEncoder({
-    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    output: (chunk, meta) => {
+      const tagged = {
+        ...(meta ?? {}),
+        decoderConfig: {
+          ...(meta?.decoderConfig ?? { codec: pickH264Codec(outW, outH) }),
+          colorSpace: p3ColorSpace,
+        },
+      };
+      muxer.addVideoChunk(chunk, tagged);
+    },
     error: (e) => { console.error("[encoder]", e); encoderErrored = true; },
   });
 
