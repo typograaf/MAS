@@ -25,9 +25,15 @@
 }
 
 * { box-sizing: border-box; }
-*::-webkit-scrollbar { width: 6px; }
-*::-webkit-scrollbar-thumb { background: var(--surface); border-radius: 6px; }
-*::-webkit-scrollbar-track { background: transparent; }
+/* Hide scrollbar chrome everywhere but keep scrolling */
+* {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* IE/Edge legacy */
+}
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+/* Form elements inherit the page typeface */
+input, button, select, textarea { font-family: inherit; }
 
 html, body {
   margin: 0;
@@ -267,6 +273,11 @@ html, body {
 .check-row input[type="checkbox"]:checked + .check-box::after { opacity: 1; }
 
 /* ---------- SLIDERS (range + label) ---------- */
+.sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 .slider {
   display: flex;
   flex-direction: column;
@@ -388,7 +399,6 @@ input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; }
   -webkit-appearance: none;
 }
 .stop-row input[type="text"] {
-  font-family: ui-monospace, "SF Mono", monospace;
   text-transform: uppercase;
 }
 .stop-row .swatch {
@@ -460,7 +470,7 @@ input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; }
   transition: opacity 160ms;
 }
 #canvas:not(.has-image) ~ .stage-overlay .stage-overlay-msg { opacity: 1; }
-.stage-overlay:hover .stage-overlay-msg { opacity: 0.85; }
+#canvas:not(.has-image) ~ .stage-overlay:hover .stage-overlay-msg { opacity: 1; }
 .stage-overlay.dragover .stage-overlay-msg { opacity: 1; }
 
 /* ---------- COLOR PICKER POPOVER ---------- */

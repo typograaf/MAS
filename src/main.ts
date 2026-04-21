@@ -109,9 +109,9 @@ function computeLumRange(source: CanvasImageSource): [number, number] {
 
 type Stop = { pos: number; color: string };
 let gradientStops: Stop[] = [
-  { pos: 0.0, color: "#BEFF00" },
-  { pos: 0.6, color: "#FF002A" },
-  { pos: 0.9, color: "#C0DEFF" },
+  { pos: 0.0, color: "#FF00CA" },
+  { pos: 0.59, color: "#BE2940" },
+  { pos: 1.0, color: "#700030" },
 ];
 
 function normalizeHex(input: string): string | null {
