@@ -19,22 +19,22 @@ const exportResSelect = document.getElementById("exportResSelect") as HTMLSelect
 const renderer = new GlassRenderer(canvas);
 
 const params: GlassParams = {
-  slatWidth: 60,
-  strength: 0.6,
-  offset: 0,
+  slatWidth: 59,
+  strength: 0.82,
+  offset: 65,
   curvature: 1.0,
   yCurve: 0.0,
-  zoom: 1.0,
-  frost: 0.0,
+  zoom: 1.23,
+  frost: 1.0,
   alternate: true,
-  gradientOn: false,
+  gradientOn: true,
 };
 
 type Stop = { pos: number; color: string };
 let gradientStops: Stop[] = [
-  { pos: 0, color: "#0E8B40" },
-  { pos: 0.52, color: "#1C461F" },
-  { pos: 1, color: "#117C08" },
+  { pos: 0.0, color: "#BEFF00" },
+  { pos: 0.6, color: "#FF002A" },
+  { pos: 0.9, color: "#C0DEFF" },
 ];
 
 function normalizeHex(input: string): string | null {
