@@ -1,15 +1,26 @@
+@font-face {
+  font-family: "Afical Neue";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Fontspring-DEMO-aficalneue-medium.otf") format("opentype");
+}
+@font-face {
+  font-family: "Afical Neue";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Fontspring-DEMO-aficalneue-bold.otf") format("opentype");
+}
+
 :root {
   --bg: #07090b;
   --text: #dff0ff;
   --surface: #31383f;
   --border: #31383f;
   --accent: #dff0ff;
-  /* Per Figma: medium body uses "Afical Neue Medium" (its own family), bold
-     headlines use "Afical Neue" Bold. Both fall back to Inter then system. */
-  --font-medium: "FONTSPRING DEMO - Afical Neue Medium",
-    "Inter", system-ui, -apple-system, sans-serif;
-  --font-bold: "FONTSPRING DEMO - Afical Neue",
-    "Inter", system-ui, -apple-system, sans-serif;
+  --font-medium: "Afical Neue", "Inter", system-ui, -apple-system, sans-serif;
+  --font-bold: "Afical Neue", "Inter", system-ui, -apple-system, sans-serif;
   --font: var(--font-medium);
 }
 
