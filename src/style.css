@@ -319,12 +319,11 @@ html, body {
   background: transparent url("/icons/slider-end.svg") no-repeat center / contain;
   border: 0;
   cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 120ms;
+  transition: filter 120ms;
   color: transparent;
   font-size: 0;
 }
-.slider-row .reset-btn:hover { opacity: 1; }
+.slider-row .reset-btn:hover { filter: brightness(1.15); }
 .slider-row .reset-btn:disabled { opacity: 0.3; cursor: default; }
 
 input[type="range"] {
@@ -430,21 +429,14 @@ input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; }
   width: 16px;
   height: 16px;
   padding: 0;
-  background: transparent;
+  background: transparent url("/icons/remove.svg") no-repeat center / contain;
   border: 0;
-  color: var(--text);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.6;
-  background-image: url("/icons/remove.svg");
-  background-size: contain;
-  background-repeat: no-repeat;
   color: transparent;
   font-size: 0;
+  transition: filter 120ms;
 }
-.stop-row .remove-stop:hover { opacity: 1; }
+.stop-row .remove-stop:hover { filter: brightness(1.15); }
 
 /* ---------- STAGE ---------- */
 .stage {
