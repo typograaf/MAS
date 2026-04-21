@@ -263,31 +263,20 @@ export class GlassRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   }
 
-  private outputAR: number | null = null;
+  private outputSize: { w: number; h: number } | null = null;
 
-  setOutputAspect(ar: number | null) {
-    this.outputAR = ar;
+  setOutputSize(size: { w: number; h: number } | null) {
+    this.outputSize = size;
     this.applyFormat();
   }
 
   private applyFormat() {
-    const [iw, ih] = this.imageSize;
-    if (this.outputAR == null) {
-      this.canvas.width = iw;
-      this.canvas.height = ih;
+    if (this.outputSize) {
+      this.canvas.width = this.outputSize.w;
+      this.canvas.height = this.outputSize.h;
     } else {
-      // Pick the largest canvas at the requested aspect that fits within the source resolution
-      const sourceAR = iw / ih;
-      let cw: number, ch: number;
-      if (this.outputAR > sourceAR) {
-        cw = iw;
-        ch = Math.round(iw / this.outputAR);
-      } else {
-        ch = ih;
-        cw = Math.round(ih * this.outputAR);
-      }
-      this.canvas.width = cw;
-      this.canvas.height = ch;
+      this.canvas.width = this.imageSize[0];
+      this.canvas.height = this.imageSize[1];
     }
   }
 

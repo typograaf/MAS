@@ -236,9 +236,17 @@ const updateSpeedLabel = () => {
 speedSlider.addEventListener("input", updateSpeedLabel);
 updateSpeedLabel();
 
+function parseFormat(val: string): { w: number; h: number } | null {
+  if (!val) return null;
+  const m = val.match(/^(\d+)x(\d+)$/);
+  if (!m) return null;
+  return { w: parseInt(m[1], 10), h: parseInt(m[2], 10) };
+}
+
+renderer.setOutputSize(parseFormat(formatSelect.value));
+
 formatSelect.addEventListener("change", () => {
-  const raw = formatSelect.value;
-  renderer.setOutputAspect(raw === "" ? null : parseFloat(raw));
+  renderer.setOutputSize(parseFormat(formatSelect.value));
   schedule();
 });
 
