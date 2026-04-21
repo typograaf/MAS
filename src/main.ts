@@ -48,6 +48,7 @@ const sliderDefs: SliderDef[] = [
 
 const sliderInputs: Partial<Record<keyof GlassParams, HTMLInputElement>> = {};
 const sliderValEls: Partial<Record<keyof GlassParams, HTMLSpanElement>> = {};
+let alternateInput: HTMLInputElement | null = null;
 
 function buildSliders() {
   for (const def of sliderDefs) {
@@ -91,6 +92,7 @@ function buildSliders() {
     params.alternate = altInput.checked;
     schedule();
   });
+  alternateInput = altInput;
   slidersEl.appendChild(altWrap);
 }
 
@@ -577,3 +579,67 @@ exportBtn.addEventListener("click", async () => {
 
 buildSliders();
 schedule();
+
+// ---- Copy / paste settings ----
+const copySettingsBtn = document.getElementById("copySettingsBtn") as HTMLButtonElement;
+const pasteSettingsBtn = document.getElementById("pasteSettingsBtn") as HTMLButtonElement;
+
+function applyParamsString(str: string): boolean {
+  let obj: Record<string, unknown>;
+  try {
+    obj = JSON.parse(str.trim());
+  } catch {
+    return false;
+  }
+  if (!obj || typeof obj !== "object") return false;
+
+  for (const def of sliderDefs) {
+    const v = obj[def.key];
+    if (typeof v === "number" && isFinite(v)) {
+      const clamped = Math.min(def.max, Math.max(def.min, v));
+      params[def.key] = clamped;
+      const inp = sliderInputs[def.key];
+      const val = sliderValEls[def.key];
+      if (inp) inp.value = String(clamped);
+      if (val) val.textContent = def.format ? def.format(clamped) : String(clamped);
+    }
+  }
+  if (typeof obj.alternate === "boolean") {
+    params.alternate = obj.alternate;
+    if (alternateInput) alternateInput.checked = obj.alternate;
+  }
+  schedule();
+  return true;
+}
+
+async function flashButton(btn: HTMLButtonElement, msg: string, ms = 900) {
+  const orig = btn.textContent;
+  btn.textContent = msg;
+  setTimeout(() => { btn.textContent = orig; }, ms);
+}
+
+copySettingsBtn.addEventListener("click", async () => {
+  const str = JSON.stringify(params);
+  try {
+    await navigator.clipboard.writeText(str);
+    flashButton(copySettingsBtn, "Copied!");
+  } catch {
+    // Clipboard API can be blocked; fall back to prompt
+    prompt("Copy settings:", str);
+  }
+});
+
+pasteSettingsBtn.addEventListener("click", async () => {
+  let text = "";
+  try {
+    text = await navigator.clipboard.readText();
+  } catch {
+    text = prompt("Paste settings string:") ?? "";
+  }
+  if (!text) return;
+  if (applyParamsString(text)) {
+    flashButton(pasteSettingsBtn, "Applied!");
+  } else {
+    flashButton(pasteSettingsBtn, "Invalid", 1500);
+  }
+});

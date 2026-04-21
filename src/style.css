@@ -115,6 +115,22 @@ button {
 button:disabled { opacity: 0.35; cursor: not-allowed; }
 button:hover:not(:disabled) { opacity: 0.92; }
 
+.presets {
+  display: flex;
+  gap: 8px;
+}
+.presets button {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.presets button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
 .playback {
   display: flex;
   flex-direction: column;
