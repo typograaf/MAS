@@ -754,7 +754,6 @@ function rebuildGradient() {
 }
 
 function sortAndRebuildRows() {
-  // Capture focus state so we can restore after the DOM is rebuilt
   const active = document.activeElement as HTMLInputElement | null;
   let focusedStop: Stop | null = null;
   let focusedKind: "number" | "text" | null = null;
@@ -767,19 +766,24 @@ function sortAndRebuildRows() {
     }
   }
 
+  const before = gradientStops.slice();
   gradientStops.sort((a, b) => a.pos - b.pos);
-  buildStopRows();
-  rebuildGradient();
+  const orderChanged = gradientStops.some((s, i) => s !== before[i]);
 
-  if (focusedStop && focusedKind) {
-    const newIdx = gradientStops.indexOf(focusedStop);
-    if (newIdx >= 0) {
-      const newRow = gradientStopsEl.children[newIdx];
-      const sel = focusedKind === "text" ? 'input[type="text"]' : 'input[type="number"]';
-      const newInput = newRow?.querySelector(sel) as HTMLInputElement | null;
-      newInput?.focus();
+  if (orderChanged) {
+    buildStopRows();
+    if (focusedStop && focusedKind) {
+      const newIdx = gradientStops.indexOf(focusedStop);
+      if (newIdx >= 0) {
+        const newRow = gradientStopsEl.children[newIdx];
+        const sel = focusedKind === "text" ? 'input[type="text"]' : 'input[type="number"]';
+        const newInput = newRow?.querySelector(sel) as HTMLInputElement | null;
+        newInput?.focus();
+      }
     }
   }
+
+  rebuildGradient();
 }
 
 function buildStopRows() {
