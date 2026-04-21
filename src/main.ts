@@ -28,7 +28,33 @@ const params: GlassParams = {
   frost: 1.0,
   alternate: true,
   gradientOn: true,
+  lumMin: 0,
+  lumMax: 1,
 };
+
+function computeLumRange(source: CanvasImageSource): [number, number] {
+  const SIZE = 128;
+  const c = document.createElement("canvas");
+  c.width = SIZE;
+  c.height = SIZE;
+  const ctx = c.getContext("2d", { willReadFrequently: true } as CanvasRenderingContext2DSettings);
+  if (!ctx) return [0, 1];
+  try {
+    ctx.drawImage(source, 0, 0, SIZE, SIZE);
+    const data = ctx.getImageData(0, 0, SIZE, SIZE).data;
+    let min = 1, max = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const lum =
+        (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
+      if (lum < min) min = lum;
+      if (lum > max) max = lum;
+    }
+    if (max - min < 0.005) max = Math.min(1, min + 0.005);
+    return [min, max];
+  } catch {
+    return [0, 1];
+  }
+}
 
 type Stop = { pos: number; color: string };
 let gradientStops: Stop[] = [
@@ -200,6 +226,7 @@ function loadFile(file: File) {
     // colorSpaceConversion: "none" preserves P3 / wide-gamut source pixels
     createImageBitmap(file, { colorSpaceConversion: "none" }).then((bitmap) => {
       renderer.setSource(bitmap);
+      [params.lumMin, params.lumMax] = computeLumRange(bitmap);
       canvas.classList.add("has-image");
       exportBtn.disabled = false;
       playBtn.disabled = false;
@@ -209,6 +236,7 @@ function loadFile(file: File) {
       const img = new Image();
       img.onload = () => {
         renderer.setSource(img);
+        [params.lumMin, params.lumMax] = computeLumRange(img);
         canvas.classList.add("has-image");
         exportBtn.disabled = false;
         playBtn.disabled = false;
@@ -229,6 +257,7 @@ function loadFile(file: File) {
     video.addEventListener("loadeddata", () => {
       currentVideo = video;
       renderer.setSource(video);
+      [params.lumMin, params.lumMax] = computeLumRange(video);
       canvas.classList.add("has-image");
       exportBtn.disabled = false;
       playBtn.disabled = false;
@@ -640,6 +669,7 @@ buildSliders();
     const blob = await res.blob();
     const bitmap = await createImageBitmap(blob, { colorSpaceConversion: "none" });
     renderer.setSource(bitmap);
+    [params.lumMin, params.lumMax] = computeLumRange(bitmap);
     canvas.classList.add("has-image");
     exportBtn.disabled = false;
     playBtn.disabled = false;

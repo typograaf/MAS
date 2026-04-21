@@ -25,6 +25,8 @@ uniform float u_frost;
 uniform float u_alternate;
 uniform sampler2D u_gradient;
 uniform float u_gradientOn;
+uniform float u_lumMin;
+uniform float u_lumMax;
 
 varying vec2 v_uv;
 
@@ -107,6 +109,9 @@ void main() {
 
   if (u_gradientOn > 0.5) {
     float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    // Stretch the image's actual luminance range to fill 0..1
+    float range = max(u_lumMax - u_lumMin, 0.001);
+    lum = clamp((lum - u_lumMin) / range, 0.0, 1.0);
     vec4 g = texture2D(u_gradient, vec2(lum, 0.5));
     col = mix(col, g.rgb, g.a);
   }
@@ -125,6 +130,8 @@ export interface GlassParams {
   frost: number;
   alternate: boolean;
   gradientOn: boolean;
+  lumMin: number;
+  lumMax: number;
 }
 
 type Source = HTMLImageElement | HTMLVideoElement | ImageBitmap;
@@ -209,6 +216,8 @@ export class GlassRenderer {
       "u_alternate",
       "u_gradient",
       "u_gradientOn",
+      "u_lumMin",
+      "u_lumMax",
     ]) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
@@ -318,6 +327,8 @@ export class GlassRenderer {
     } else {
       gl.uniform1f(this.uniforms.u_gradientOn!, 0);
     }
+    gl.uniform1f(this.uniforms.u_lumMin!, params.lumMin);
+    gl.uniform1f(this.uniforms.u_lumMax!, params.lumMax);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
