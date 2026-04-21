@@ -735,9 +735,10 @@ async function exportViaWebCodecs(fmt: ExportFormat) {
 
 async function runExport(id: "png" | "mov") {
   if (id === "png") return exportPng();
+  // Button is labelled "MOV" but we output an .mp4 file (same H.264 bitstream).
   const fmt =
-    exportFormats.find((f) => f.id === "mov") ??
-    exportFormats.find((f) => f.id === "mp4");
+    exportFormats.find((f) => f.id === "mp4") ??
+    exportFormats.find((f) => f.id === "mov");
   if (!fmt) {
     alert("Video export isn't supported in this browser.");
     return;
