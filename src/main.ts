@@ -667,10 +667,15 @@ function rebuildGradient() {
   schedule();
 }
 
+function sortAndRebuildRows() {
+  gradientStops.sort((a, b) => a.pos - b.pos);
+  buildStopRows();
+  rebuildGradient();
+}
+
 function buildStopRows() {
   gradientStopsEl.innerHTML = "";
-  for (let i = 0; i < gradientStops.length; i++) {
-    const stop = gradientStops[i];
+  for (const stop of gradientStops) {
     const row = document.createElement("div");
     row.className = "stop-row";
     row.innerHTML = `
@@ -684,13 +689,16 @@ function buildStopRows() {
     const hexInp = row.querySelector('input[type="text"]') as HTMLInputElement;
     const removeBtn = row.querySelector(".remove-stop") as HTMLButtonElement;
 
+    // Live update while typing — no reorder yet (would steal focus)
     posInp.addEventListener("input", () => {
       const v = parseFloat(posInp.value);
       if (isFinite(v)) {
-        gradientStops[i].pos = Math.max(0, Math.min(1, v / 100));
+        stop.pos = Math.max(0, Math.min(1, v / 100));
         rebuildGradient();
       }
     });
+    // Reorder on commit (blur / Enter)
+    posInp.addEventListener("change", sortAndRebuildRows);
     posInp.addEventListener("keydown", (e) => {
       if (!e.shiftKey) return;
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
@@ -698,14 +706,14 @@ function buildStopRows() {
       const cur = parseFloat(posInp.value) || 0;
       const next = Math.max(0, Math.min(100, cur + (e.key === "ArrowUp" ? 10 : -10)));
       posInp.value = String(next);
-      gradientStops[i].pos = next / 100;
+      stop.pos = next / 100;
       rebuildGradient();
     });
 
     const applyHex = () => {
       const norm = normalizeHex(hexInp.value);
       if (norm) {
-        gradientStops[i].color = norm;
+        stop.color = norm;
         hexInp.value = norm.replace(/^#/, "");
         swatchBtn.style.background = norm;
         rebuildGradient();
@@ -716,8 +724,8 @@ function buildStopRows() {
 
     swatchBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      openColorPicker(swatchBtn, gradientStops[i].color, (newColor) => {
-        gradientStops[i].color = newColor;
+      openColorPicker(swatchBtn, stop.color, (newColor) => {
+        stop.color = newColor;
         hexInp.value = newColor.replace(/^#/, "");
         swatchBtn.style.background = newColor;
         rebuildGradient();
@@ -726,7 +734,7 @@ function buildStopRows() {
 
     removeBtn.addEventListener("click", () => {
       if (gradientStops.length <= 2) return;
-      gradientStops.splice(i, 1);
+      gradientStops = gradientStops.filter((s) => s !== stop);
       buildStopRows();
       rebuildGradient();
     });
