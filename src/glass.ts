@@ -23,6 +23,8 @@ uniform float u_yCurve;
 uniform float u_zoom;
 uniform float u_frost;
 uniform float u_alternate;
+uniform sampler2D u_gradient;
+uniform float u_gradientOn;
 
 varying vec2 v_uv;
 
@@ -102,6 +104,13 @@ void main() {
   iuv = clamp(iuv, 0.0, 1.0);
 
   vec3 col = sampleSource(iuv);
+
+  if (u_gradientOn > 0.5) {
+    float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    vec4 g = texture2D(u_gradient, vec2(lum, 0.5));
+    col = mix(col, g.rgb, g.a);
+  }
+
   gl_FragColor = vec4(col, 1.0);
 }
 `;
@@ -115,6 +124,7 @@ export interface GlassParams {
   zoom: number;
   frost: number;
   alternate: boolean;
+  gradientOn: boolean;
 }
 
 type Source = HTMLImageElement | HTMLVideoElement | ImageBitmap;
@@ -126,6 +136,7 @@ export class GlassRenderer {
   private source: Source | null = null;
   private imageSize: [number, number] = [1, 1];
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
+  private gradientTex: WebGLTexture | null = null;
 
   constructor(private canvas: HTMLCanvasElement) {
     const attrs: WebGLContextAttributes & { colorSpace?: string } = {
@@ -196,6 +207,8 @@ export class GlassRenderer {
       "u_zoom",
       "u_frost",
       "u_alternate",
+      "u_gradient",
+      "u_gradientOn",
     ]) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
@@ -227,6 +240,18 @@ export class GlassRenderer {
     const gl = this.gl;
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.source);
+  }
+
+  setGradient(canvas: HTMLCanvasElement) {
+    const gl = this.gl;
+    if (!this.gradientTex) this.gradientTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.gradientTex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   }
 
   private outputAR: number | null = null;
@@ -284,6 +309,15 @@ export class GlassRenderer {
     gl.uniform1f(this.uniforms.u_zoom!, params.zoom);
     gl.uniform1f(this.uniforms.u_frost!, params.frost);
     gl.uniform1f(this.uniforms.u_alternate!, params.alternate ? 1 : 0);
+
+    if (this.gradientTex && params.gradientOn) {
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, this.gradientTex);
+      gl.uniform1i(this.uniforms.u_gradient!, 1);
+      gl.uniform1f(this.uniforms.u_gradientOn!, 1);
+    } else {
+      gl.uniform1f(this.uniforms.u_gradientOn!, 0);
+    }
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }

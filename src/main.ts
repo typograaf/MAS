@@ -25,10 +25,18 @@ const params: GlassParams = {
   zoom: 1.0,
   frost: 0.0,
   alternate: true,
+  gradientOn: false,
 };
 
+type Stop = { pos: number; color: string; opacity: number };
+let gradientStops: Stop[] = [
+  { pos: 0, color: "#0E8B40", opacity: 1 },
+  { pos: 0.52, color: "#1C461F", opacity: 1 },
+  { pos: 1, color: "#117C08", opacity: 1 },
+];
+
 type SliderDef = {
-  key: keyof Omit<GlassParams, "alternate">;
+  key: keyof Omit<GlassParams, "alternate" | "gradientOn">;
   label: string;
   min: number;
   max: number;
@@ -578,6 +586,108 @@ exportBtn.addEventListener("click", async () => {
 });
 
 buildSliders();
+
+// ---- Gradient map editor ----
+const gradientToggle = document.getElementById("gradientToggle") as HTMLInputElement;
+const gradientBar = document.getElementById("gradientBar") as HTMLDivElement;
+const gradientStopsEl = document.getElementById("gradientStops") as HTMLDivElement;
+const addStopBtn = document.getElementById("addStopBtn") as HTMLButtonElement;
+
+const gradientCanvas = document.createElement("canvas");
+gradientCanvas.width = 256;
+gradientCanvas.height = 1;
+const gradientCtx = gradientCanvas.getContext("2d")!;
+
+function hexWithAlpha(hex: string, alpha: number): string {
+  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255);
+  return `${hex}${a.toString(16).padStart(2, "0")}`;
+}
+
+function gradientCssString(): string {
+  const sorted = [...gradientStops].sort((a, b) => a.pos - b.pos);
+  return sorted
+    .map((s) => `${hexWithAlpha(s.color, s.opacity)} ${(s.pos * 100).toFixed(1)}%`)
+    .join(", ");
+}
+
+function rebuildGradient() {
+  const sorted = [...gradientStops].sort((a, b) => a.pos - b.pos);
+  // Texture
+  gradientCtx.clearRect(0, 0, 256, 1);
+  const grad = gradientCtx.createLinearGradient(0, 0, 256, 0);
+  for (const s of sorted) {
+    grad.addColorStop(Math.max(0, Math.min(1, s.pos)), hexWithAlpha(s.color, s.opacity));
+  }
+  gradientCtx.fillStyle = grad;
+  gradientCtx.fillRect(0, 0, 256, 1);
+  renderer.setGradient(gradientCanvas);
+  // Visual preview bar
+  gradientBar.innerHTML = "";
+  const inner = document.createElement("div");
+  inner.style.background = `linear-gradient(to right, ${gradientCssString()})`;
+  gradientBar.appendChild(inner);
+  schedule();
+}
+
+function buildStopRows() {
+  gradientStopsEl.innerHTML = "";
+  for (let i = 0; i < gradientStops.length; i++) {
+    const stop = gradientStops[i];
+    const row = document.createElement("div");
+    row.className = "stop-row";
+    row.innerHTML = `
+      <input type="number" min="0" max="100" step="1" value="${Math.round(stop.pos * 100)}" />
+      <input type="color" value="${stop.color}" />
+      <input type="range" min="0" max="100" step="1" value="${Math.round(stop.opacity * 100)}" />
+      <button type="button" title="Remove">×</button>
+    `;
+    const [posInp, colorInp, opInp] = row.querySelectorAll("input");
+    const removeBtn = row.querySelector("button")!;
+    posInp.addEventListener("input", () => {
+      const v = parseFloat((posInp as HTMLInputElement).value);
+      if (isFinite(v)) {
+        gradientStops[i].pos = Math.max(0, Math.min(1, v / 100));
+        rebuildGradient();
+      }
+    });
+    colorInp.addEventListener("input", () => {
+      gradientStops[i].color = (colorInp as HTMLInputElement).value;
+      rebuildGradient();
+    });
+    opInp.addEventListener("input", () => {
+      gradientStops[i].opacity = parseFloat((opInp as HTMLInputElement).value) / 100;
+      rebuildGradient();
+    });
+    removeBtn.addEventListener("click", () => {
+      if (gradientStops.length <= 2) return;  // keep at least 2 stops
+      gradientStops.splice(i, 1);
+      buildStopRows();
+      rebuildGradient();
+    });
+    gradientStopsEl.appendChild(row);
+  }
+}
+
+addStopBtn.addEventListener("click", () => {
+  // Insert a new stop at midpoint between last two stops (or at 0.5)
+  const sorted = [...gradientStops].sort((a, b) => a.pos - b.pos);
+  const last = sorted[sorted.length - 1];
+  const prev = sorted[sorted.length - 2];
+  const newPos = prev ? (prev.pos + last.pos) / 2 : 0.5;
+  gradientStops.push({ pos: newPos, color: "#FFFFFF", opacity: 1 });
+  buildStopRows();
+  rebuildGradient();
+});
+
+gradientToggle.checked = params.gradientOn;
+gradientToggle.addEventListener("change", () => {
+  params.gradientOn = gradientToggle.checked;
+  schedule();
+});
+
+buildStopRows();
+rebuildGradient();
+
 schedule();
 
 // ---- Copy / paste settings ----
@@ -608,6 +718,31 @@ function applyParamsString(str: string): boolean {
     params.alternate = obj.alternate;
     if (alternateInput) alternateInput.checked = obj.alternate;
   }
+  if (typeof obj.gradientOn === "boolean") {
+    params.gradientOn = obj.gradientOn;
+    gradientToggle.checked = obj.gradientOn;
+  }
+  if (Array.isArray(obj.gradientStops)) {
+    const valid = obj.gradientStops
+      .filter(
+        (s: unknown): s is Stop =>
+          !!s &&
+          typeof s === "object" &&
+          typeof (s as Stop).pos === "number" &&
+          typeof (s as Stop).color === "string" &&
+          typeof (s as Stop).opacity === "number"
+      )
+      .map((s: Stop) => ({
+        pos: Math.max(0, Math.min(1, s.pos)),
+        color: s.color,
+        opacity: Math.max(0, Math.min(1, s.opacity)),
+      }));
+    if (valid.length >= 2) {
+      gradientStops = valid;
+      buildStopRows();
+      rebuildGradient();
+    }
+  }
   schedule();
   return true;
 }
@@ -619,7 +754,7 @@ async function flashButton(btn: HTMLButtonElement, msg: string, ms = 900) {
 }
 
 copySettingsBtn.addEventListener("click", async () => {
-  const str = JSON.stringify(params);
+  const str = JSON.stringify({ ...params, gradientStops });
   try {
     await navigator.clipboard.writeText(str);
     flashButton(copySettingsBtn, "Copied!");
