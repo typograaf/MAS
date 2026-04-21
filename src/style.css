@@ -437,7 +437,6 @@ input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; }
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
   flex: 1 1 auto;
@@ -447,7 +446,13 @@ input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; }
   max-width: 100%;
   max-height: 100%;
   display: block;
-  border-radius: 12px;
+  outline: none;
+}
+.stage-overlay { outline: none; }
+.stage-overlay:focus { outline: none; }
+button:focus, input:focus, select:focus, .stage-overlay:focus,
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: none;
 }
 .stage-overlay {
   position: absolute;
