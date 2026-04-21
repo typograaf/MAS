@@ -811,11 +811,13 @@ function buildStopRows() {
       }
     });
     posInp.addEventListener("keydown", (e) => {
-      if (!e.shiftKey) return;
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
       e.preventDefault();
+      const step = e.shiftKey ? 10 : 1;
       const cur = parseFloat(posInp.value) || 0;
-      const next = Math.max(0, Math.min(100, cur + (e.key === "ArrowUp" ? 10 : -10)));
+      const dir = e.key === "ArrowUp" ? 1 : -1;
+      const next = Math.max(0, Math.min(100, cur + step * dir));
+      posInp.value = String(next);
       stop.pos = next / 100;
       sortAndRebuildRows();
     });
