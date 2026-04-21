@@ -155,7 +155,6 @@ button:hover:not(:disabled) { opacity: 0.92; }
   align-items: center;
 }
 .stop-row input[type="number"],
-.stop-row input[type="color"],
 .stop-row input[type="text"] {
   background: var(--bg);
   border: 1px solid var(--line);
@@ -166,13 +165,34 @@ button:hover:not(:disabled) { opacity: 0.92; }
   height: 28px;
   font-family: inherit;
 }
-.stop-row input[type="color"] {
-  padding: 2px;
+.stop-row .swatch {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  height: 28px;
+  width: 28px;
+  padding: 0;
   cursor: pointer;
+  background-clip: padding-box;
 }
+.stop-row .swatch:hover { border-color: var(--text); }
 .stop-row input[type="text"] {
   font-family: ui-monospace, "SF Mono", monospace;
   text-transform: uppercase;
+}
+
+.color-popover {
+  position: fixed;
+  z-index: 1000;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+.color-popover hex-color-picker {
+  width: 220px;
+  height: 220px;
+  --vcp-border-radius: 4px;
 }
 .stop-row button {
   background: transparent;

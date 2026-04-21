@@ -1,6 +1,8 @@
 import "./style.css";
 import { GlassRenderer, type GlassParams } from "./glass";
 import { Muxer, ArrayBufferTarget } from "mp4-muxer";
+import "vanilla-colorful/hex-color-picker.js";
+import type { HexColorPicker } from "vanilla-colorful/hex-color-picker.js";
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 const dropZone = document.getElementById("dropZone") as HTMLDivElement;
@@ -639,37 +641,44 @@ function buildStopRows() {
     row.className = "stop-row";
     row.innerHTML = `
       <input type="number" min="0" max="100" step="1" value="${Math.round(stop.pos * 100)}" />
-      <input type="color" value="${stop.color}" />
+      <button type="button" class="swatch" style="background:${stop.color}" aria-label="Pick color"></button>
       <input type="text" value="${stop.color.replace(/^#/, "")}" maxlength="7" spellcheck="false" />
-      <button type="button" title="Remove">×</button>
+      <button type="button" title="Remove" class="remove-stop">×</button>
     `;
-    const [posInp, colorInp, hexInp] = row.querySelectorAll("input");
-    const removeBtn = row.querySelector("button")!;
+    const posInp = row.querySelector('input[type="number"]') as HTMLInputElement;
+    const swatchBtn = row.querySelector(".swatch") as HTMLButtonElement;
+    const hexInp = row.querySelector('input[type="text"]') as HTMLInputElement;
+    const removeBtn = row.querySelector(".remove-stop") as HTMLButtonElement;
 
     posInp.addEventListener("input", () => {
-      const v = parseFloat((posInp as HTMLInputElement).value);
+      const v = parseFloat(posInp.value);
       if (isFinite(v)) {
         gradientStops[i].pos = Math.max(0, Math.min(1, v / 100));
         rebuildGradient();
       }
     });
-    colorInp.addEventListener("input", () => {
-      const c = (colorInp as HTMLInputElement).value;
-      gradientStops[i].color = c;
-      (hexInp as HTMLInputElement).value = c.replace(/^#/, "");
-      rebuildGradient();
-    });
+
     const applyHex = () => {
-      const norm = normalizeHex((hexInp as HTMLInputElement).value);
+      const norm = normalizeHex(hexInp.value);
       if (norm) {
         gradientStops[i].color = norm;
-        (colorInp as HTMLInputElement).value = norm;
-        (hexInp as HTMLInputElement).value = norm.replace(/^#/, "");
+        hexInp.value = norm.replace(/^#/, "");
+        swatchBtn.style.background = norm;
         rebuildGradient();
       }
     };
     hexInp.addEventListener("change", applyHex);
     hexInp.addEventListener("paste", () => setTimeout(applyHex, 0));
+
+    swatchBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openColorPicker(swatchBtn, gradientStops[i].color, (newColor) => {
+        gradientStops[i].color = newColor;
+        hexInp.value = newColor.replace(/^#/, "");
+        swatchBtn.style.background = newColor;
+        rebuildGradient();
+      });
+    });
 
     removeBtn.addEventListener("click", () => {
       if (gradientStops.length <= 2) return;
@@ -679,6 +688,68 @@ function buildStopRows() {
     });
     gradientStopsEl.appendChild(row);
   }
+}
+
+// ---- Color picker popover ----
+let activePopover: HTMLDivElement | null = null;
+let activePopoverCleanup: (() => void) | null = null;
+
+function closeColorPicker() {
+  if (activePopover) {
+    activePopover.remove();
+    activePopover = null;
+  }
+  if (activePopoverCleanup) {
+    activePopoverCleanup();
+    activePopoverCleanup = null;
+  }
+}
+
+function openColorPicker(
+  anchor: HTMLElement,
+  initial: string,
+  onChange: (hex: string) => void
+) {
+  closeColorPicker();
+  const pop = document.createElement("div");
+  pop.className = "color-popover";
+  const picker = document.createElement("hex-color-picker") as HexColorPicker;
+  picker.color = initial;
+  picker.addEventListener("color-changed", (e) => {
+    const hex = (e as CustomEvent<{ value: string }>).detail.value.toUpperCase();
+    onChange(hex);
+  });
+  pop.appendChild(picker);
+  document.body.appendChild(pop);
+
+  // Position below anchor
+  const rect = anchor.getBoundingClientRect();
+  const popRect = pop.getBoundingClientRect();
+  let top = rect.bottom + 6;
+  let left = rect.left;
+  if (left + popRect.width > window.innerWidth - 8) {
+    left = window.innerWidth - popRect.width - 8;
+  }
+  if (top + popRect.height > window.innerHeight - 8) {
+    top = rect.top - popRect.height - 6;
+  }
+  pop.style.top = `${top}px`;
+  pop.style.left = `${left}px`;
+
+  const onDocClick = (e: MouseEvent) => {
+    if (!pop.contains(e.target as Node)) closeColorPicker();
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") closeColorPicker();
+  };
+  setTimeout(() => document.addEventListener("click", onDocClick), 0);
+  document.addEventListener("keydown", onKey);
+
+  activePopover = pop;
+  activePopoverCleanup = () => {
+    document.removeEventListener("click", onDocClick);
+    document.removeEventListener("keydown", onKey);
+  };
 }
 
 addStopBtn.addEventListener("click", () => {
