@@ -4,25 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MAS — Image Background Engine</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap"
-      rel="stylesheet"
-    />
   </head>
   <body>
     <input type="file" id="fileInput" accept="image/*,video/*" hidden />
 
     <div id="app">
-      <!-- LEFT SIDEBAR -->
-      <aside class="sidebar sidebar-left">
-        <div class="sidebar-top">
-          <header class="brand">
-            <img src="/icons/mas-logo.svg" alt="MAS" class="brand-logo" />
-            <div class="brand-sub">Image<br />Background<br />Engine</div>
-          </header>
+      <header class="page-header">
+        <a href="/" class="brand">
+          <img src="/icons/mas-logo.svg" alt="MAS" class="brand-logo" />
+          <div class="brand-sub">Image<br />Background<br />Engine</div>
+        </a>
+      </header>
 
+      <div class="body">
+        <!-- LEFT SIDEBAR -->
+        <aside class="sidebar">
           <section class="group">
             <label class="group-title">Canvas Size</label>
             <div class="seg2">
@@ -47,86 +43,75 @@
               <span class="plus-icon"></span> Add Stop
             </button>
           </section>
-        </div>
 
-        <a href="https://typograaf.be" target="_blank" rel="noopener" class="typograaf">
-          <img src="/icons/typograaf.svg" alt="typograaf" />
-        </a>
-      </aside>
+          <section class="group">
+            <label class="check-row">
+              <input type="checkbox" id="strengthToggle" />
+              <span class="check-box"></span>
+              <span>Strength Gradient</span>
+            </label>
+            <div class="gradient-bar" id="strengthBar"></div>
+            <div class="gradient-stops" id="strengthStops"></div>
+            <button type="button" id="addStrengthStopBtn" class="surface-btn btn-plus">
+              <span class="plus-icon"></span> Add Stop
+            </button>
+          </section>
 
-      <!-- STAGE / CANVAS -->
-      <main class="stage" id="stage">
-        <canvas id="canvas"></canvas>
-        <div class="stage-overlay" id="dropZone">
-          <div class="stage-overlay-msg">Drop image or video</div>
-        </div>
-      </main>
+          <section class="group">
+            <label class="group-title">Settings</label>
+            <div class="seg2">
+              <button type="button" class="surface-btn" id="copySettingsBtn">Copy Settings</button>
+              <button type="button" class="surface-btn" id="pasteSettingsBtn">Paste Settings</button>
+            </div>
+          </section>
 
-      <!-- RIGHT SIDEBAR -->
-      <aside class="sidebar sidebar-right">
-        <div class="brand brand-placeholder" aria-hidden="true">
-          <img src="/icons/mas-logo.svg" alt="" class="brand-logo" />
-          <div class="brand-sub">Image<br />Background<br />Engine</div>
-        </div>
+          <section class="group">
+            <div class="slider-head">
+              <span class="slider-label">Speed</span>
+              <span class="slider-val" id="speedVal">60 px/s</span>
+            </div>
+            <div class="slider-row">
+              <input type="range" id="speedSlider" min="-300" max="300" step="1" value="60" />
+            </div>
+            <button type="button" class="surface-btn play-btn" id="playBtn" disabled>Play</button>
+          </section>
 
-        <section class="group">
-          <label class="group-title">Export Size</label>
-          <div class="seg2">
-            <input type="number" id="exportW" value="1920" min="16" step="1" />
-            <input type="number" id="exportH" value="1080" min="16" step="1" />
+          <section class="group">
+            <label class="group-title">Export</label>
+            <div class="seg2">
+              <button type="button" class="surface-btn" id="exportMovBtn">MOV</button>
+              <button type="button" class="surface-btn" id="exportPngBtn">PNG</button>
+            </div>
+          </section>
+        </aside>
+
+        <!-- CANVAS AREA -->
+        <main class="canvas-area">
+          <h2 class="canvas-title">Canvas Preview</h2>
+          <div class="stage" id="stage">
+            <canvas id="canvas"></canvas>
+            <div class="stage-overlay" id="dropZone">
+              <div class="stage-overlay-msg">Drop image or video</div>
+            </div>
           </div>
-        </section>
+          <footer class="canvas-footer">
+            <nav class="footer-links">
+              <a href="https://typografie.be" target="_blank" rel="noopener">typografie.be</a>
+              <a href="mailto:hello@typografie.be">hello@typografie.be</a>
+              <a href="https://www.instagram.com/typograaf" target="_blank" rel="noopener">@typograaf</a>
+            </nav>
+            <a href="https://typograaf.be" target="_blank" rel="noopener" class="typograaf">
+              <img src="/icons/typograaf.svg" alt="typograaf" />
+            </a>
+          </footer>
+        </main>
+      </div>
 
-        <section class="group">
-          <label class="check-row">
-            <input type="checkbox" id="strengthToggle" />
-            <span class="check-box"></span>
-            <span>Strength Gradient</span>
-          </label>
-          <div class="gradient-bar" id="strengthBar"></div>
-          <div class="gradient-stops" id="strengthStops"></div>
-          <button type="button" id="addStrengthStopBtn" class="surface-btn btn-plus">
-            <span class="plus-icon"></span> Add Stop
-          </button>
-        </section>
-
-        <section class="group">
-          <label class="group-title">Settings</label>
-          <div class="seg2">
-            <button type="button" class="surface-btn" id="copySettingsBtn">Copy Settings</button>
-            <button type="button" class="surface-btn" id="pasteSettingsBtn">Paste Settings</button>
-          </div>
-        </section>
-
-        <section class="group">
-          <div class="slider-head">
-            <span class="slider-label">Speed</span>
-            <span class="slider-val" id="speedVal">60 px/s</span>
-          </div>
-          <div class="slider-row">
-            <input type="range" id="speedSlider" min="-300" max="300" step="1" value="60" />
-          </div>
-          <button type="button" class="surface-btn play-btn" id="playBtn" disabled>Play</button>
-        </section>
-
-        <section class="group">
-          <label class="group-title">Export</label>
-          <div class="seg2">
-            <button type="button" class="surface-btn" id="exportMovBtn">MOV</button>
-            <button type="button" class="surface-btn" id="exportPngBtn">PNG</button>
-          </div>
-        </section>
-
-        <!-- Hidden legacy controls that main.ts still reads -->
-        <select id="formatSelect" hidden>
-          <option value="1920x1080" selected>1920 × 1080</option>
-        </select>
-        <select id="exportFormatSelect" hidden></select>
-        <select id="exportResSelect" hidden>
-          <option value="1920" selected>1080p</option>
-        </select>
-        <button id="exportBtn" hidden></button>
-      </aside>
+      <!-- Hidden legacy elements main.ts still queries -->
+      <select id="formatSelect" hidden><option value="1920x1080" selected></option></select>
+      <select id="exportFormatSelect" hidden></select>
+      <select id="exportResSelect" hidden><option value="1920" selected></option></select>
+      <button id="exportBtn" hidden></button>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

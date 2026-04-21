@@ -46,11 +46,28 @@ html, body {
 }
 
 #app {
-  display: grid;
-  grid-template-columns: 300px 1fr 300px;
+  display: flex;
+  flex-direction: column;
   gap: 24px;
   padding: 24px;
   height: 100vh;
+  min-height: 0;
+}
+.body {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 24px;
+  min-height: 0;
+}
+
+/* ---------- HEADER ---------- */
+.page-header {
+  flex-shrink: 0;
+}
+.page-header .brand {
+  text-decoration: none;
+  color: inherit;
 }
 
 /* ---------- SIDEBAR ---------- */
@@ -58,17 +75,50 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 36px;
-  height: 100%;
-  overflow: auto;
+  overflow-y: auto;
+  padding-right: 6px;
+  min-height: 0;
 }
-.sidebar-left {
-  justify-content: space-between;
-}
-.sidebar-left .sidebar-top {
+
+/* ---------- CANVAS AREA ---------- */
+.canvas-area {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
 }
+.canvas-title {
+  margin: 0;
+  font-family: var(--font-bold);
+  font-weight: 700;
+  font-size: 12px;
+  line-height: normal;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.canvas-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-shrink: 0;
+}
+.footer-links {
+  display: flex;
+  gap: 48px;
+  font-family: var(--font-bold);
+  font-weight: 700;
+  font-size: 12px;
+  line-height: normal;
+  color: var(--text);
+}
+.footer-links a {
+  color: inherit;
+  text-decoration: none;
+  transition: opacity 120ms;
+}
+.footer-links a:hover { opacity: 0.65; }
 
 .brand {
   display: flex;
@@ -86,8 +136,6 @@ html, body {
   letter-spacing: -0.1394px;
   color: var(--text);
 }
-.brand-placeholder { opacity: 0; pointer-events: none; height: 36px; flex-shrink: 0; }
-
 .typograaf {
   display: inline-block;
   width: 85.342px;
@@ -382,6 +430,8 @@ input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; }
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 #canvas {
   max-width: 100%;
