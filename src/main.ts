@@ -324,7 +324,18 @@ function downloadBlob(blob: Blob, filename: string) {
 
 async function exportPng() {
   renderer.render(params);
-  canvas.toBlob((blob) => {
+  // Copy through a 2D canvas tagged display-p3 so toBlob embeds the P3 ICC
+  // profile in the PNG. Direct WebGL canvas.toBlob doesn't reliably do this.
+  const mirror = document.createElement("canvas");
+  mirror.width = canvas.width;
+  mirror.height = canvas.height;
+  const ctx = mirror.getContext(
+    "2d",
+    { colorSpace: "display-p3" } as CanvasRenderingContext2DSettings
+  );
+  const target = ctx ? mirror : canvas;
+  if (ctx) ctx.drawImage(canvas, 0, 0);
+  target.toBlob((blob) => {
     if (blob) downloadBlob(blob, "mas-overlay.png");
   }, "image/png");
 }
