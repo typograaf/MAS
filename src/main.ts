@@ -668,6 +668,16 @@ function buildStopRows() {
         rebuildGradient();
       }
     });
+    posInp.addEventListener("keydown", (e) => {
+      if (!e.shiftKey) return;
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      e.preventDefault();
+      const cur = parseFloat(posInp.value) || 0;
+      const next = Math.max(0, Math.min(100, cur + (e.key === "ArrowUp" ? 10 : -10)));
+      posInp.value = String(next);
+      gradientStops[i].pos = next / 100;
+      rebuildGradient();
+    });
 
     const applyHex = () => {
       const norm = normalizeHex(hexInp.value);
