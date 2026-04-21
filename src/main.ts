@@ -141,7 +141,7 @@ const sliderDefs: SliderDef[] = [
   { key: "offset", label: "Offset", min: 0, max: 600, step: 1, format: (v) => `${v.toFixed(0)}px` },
   { key: "curvature", label: "Curvature", min: 0.1, max: 2.0, step: 0.01, format: (v) => v.toFixed(2) },
   { key: "yCurve", label: "Vertical curve", min: 0, max: 1, step: 0.01, format: (v) => v.toFixed(2) },
-  { key: "zoom", label: "Zoom", min: 0.5, max: 5, step: 0.01, format: (v) => `${(v * 100).toFixed(0)}%` },
+  { key: "zoom", label: "Zoom", min: 1, max: 5, step: 0.01, format: (v) => `${(v * 100).toFixed(0)}%` },
   { key: "frost", label: "Frost", min: 0, max: 1, step: 0.01, format: (v) => v.toFixed(2) },
 ];
 
@@ -268,6 +268,43 @@ playBtn.addEventListener("click", () => {
   if (!renderer || exportBtn.disabled) return; // no image loaded yet
   setPlaying(!playing);
 });
+
+// Spacebar toggles play/pause (unless user is typing in a text field)
+document.addEventListener("keydown", (e) => {
+  if (e.code !== "Space" && e.key !== " ") return;
+  const t = e.target as HTMLElement | null;
+  const tag = t?.tagName ?? "";
+  const type = (t as HTMLInputElement | null)?.type;
+  const typing =
+    t?.isContentEditable ||
+    tag === "TEXTAREA" ||
+    (tag === "INPUT" && type !== "range" && type !== "checkbox" && type !== "button");
+  if (typing) return;
+  if (exportBtn.disabled) return; // no source yet
+  e.preventDefault();
+  setPlaying(!playing);
+});
+
+// Scroll on the preview to zoom; clamped to [1, 5] so boundaries stay at canvas edges
+const stageEl = document.getElementById("stage") as HTMLElement;
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 5;
+stageEl.addEventListener(
+  "wheel",
+  (e) => {
+    e.preventDefault();
+    const delta = -e.deltaY * 0.0025; // scroll up → zoom in
+    const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, params.zoom + delta));
+    if (next === params.zoom) return;
+    params.zoom = next;
+    const inp = sliderInputs.zoom;
+    const val = sliderValEls.zoom;
+    if (inp) inp.value = String(next);
+    if (val) val.textContent = `${(next * 100).toFixed(0)}%`;
+    schedule();
+  },
+  { passive: false }
+);
 
 const updateSpeedLabel = () => {
   speedPxPerSec = parseFloat(speedSlider.value);
