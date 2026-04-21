@@ -683,9 +683,32 @@ function rebuildGradient() {
 }
 
 function sortAndRebuildRows() {
+  // Capture focus state so we can restore after the DOM is rebuilt
+  const active = document.activeElement as HTMLInputElement | null;
+  let focusedStop: Stop | null = null;
+  let focusedKind: "number" | "text" | null = null;
+  if (active && active.tagName === "INPUT") {
+    const row = active.closest(".stop-row");
+    if (row) {
+      const idx = Array.from(gradientStopsEl.children).indexOf(row);
+      if (idx >= 0) focusedStop = gradientStops[idx];
+      focusedKind = active.type === "text" ? "text" : "number";
+    }
+  }
+
   gradientStops.sort((a, b) => a.pos - b.pos);
   buildStopRows();
   rebuildGradient();
+
+  if (focusedStop && focusedKind) {
+    const newIdx = gradientStops.indexOf(focusedStop);
+    if (newIdx >= 0) {
+      const newRow = gradientStopsEl.children[newIdx];
+      const sel = focusedKind === "text" ? 'input[type="text"]' : 'input[type="number"]';
+      const newInput = newRow?.querySelector(sel) as HTMLInputElement | null;
+      newInput?.focus();
+    }
+  }
 }
 
 function buildStopRows() {
@@ -704,25 +727,22 @@ function buildStopRows() {
     const hexInp = row.querySelector('input[type="text"]') as HTMLInputElement;
     const removeBtn = row.querySelector(".remove-stop") as HTMLButtonElement;
 
-    // Live update while typing — no reorder yet (would steal focus)
+    // Live update + reorder on every change
     posInp.addEventListener("input", () => {
       const v = parseFloat(posInp.value);
       if (isFinite(v)) {
         stop.pos = Math.max(0, Math.min(1, v / 100));
-        rebuildGradient();
+        sortAndRebuildRows();
       }
     });
-    // Reorder on commit (blur / Enter)
-    posInp.addEventListener("change", sortAndRebuildRows);
     posInp.addEventListener("keydown", (e) => {
       if (!e.shiftKey) return;
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
       e.preventDefault();
       const cur = parseFloat(posInp.value) || 0;
       const next = Math.max(0, Math.min(100, cur + (e.key === "ArrowUp" ? 10 : -10)));
-      posInp.value = String(next);
       stop.pos = next / 100;
-      rebuildGradient();
+      sortAndRebuildRows();
     });
 
     const applyHex = () => {
