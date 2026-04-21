@@ -632,6 +632,21 @@ exportBtn.addEventListener("click", async () => {
 
 buildSliders();
 
+// Auto-load default image
+(async () => {
+  try {
+    const res = await fetch("/default.png");
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const bitmap = await createImageBitmap(blob, { colorSpaceConversion: "none" });
+    renderer.setSource(bitmap);
+    canvas.classList.add("has-image");
+    exportBtn.disabled = false;
+    playBtn.disabled = false;
+    schedule();
+  } catch {}
+})();
+
 // ---- Gradient map editor ----
 const gradientToggle = document.getElementById("gradientToggle") as HTMLInputElement;
 const gradientBar = document.getElementById("gradientBar") as HTMLDivElement;
