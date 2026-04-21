@@ -285,23 +285,26 @@ document.addEventListener("keydown", (e) => {
   setPlaying(!playing);
 });
 
-// Scroll on the preview to zoom; clamped to [1, 5] so boundaries stay at canvas edges
+// Scroll on the preview to visually zoom the canvas (CSS scale, not shader zoom).
+// Clamped to [1, 5] — at 1 the canvas boundaries align with the stage edges;
+// above 1 it overflows and the stage's overflow:hidden crops the view.
 const stageEl = document.getElementById("stage") as HTMLElement;
-const ZOOM_MIN = 1;
-const ZOOM_MAX = 5;
+const PREVIEW_MIN = 1;
+const PREVIEW_MAX = 5;
+let previewScale = 1;
+function applyPreviewScale() {
+  canvas.style.transform = `scale(${previewScale})`;
+  canvas.style.transformOrigin = "center center";
+}
 stageEl.addEventListener(
   "wheel",
   (e) => {
     e.preventDefault();
-    const delta = -e.deltaY * 0.0025; // scroll up → zoom in
-    const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, params.zoom + delta));
-    if (next === params.zoom) return;
-    params.zoom = next;
-    const inp = sliderInputs.zoom;
-    const val = sliderValEls.zoom;
-    if (inp) inp.value = String(next);
-    if (val) val.textContent = `${(next * 100).toFixed(0)}%`;
-    schedule();
+    const delta = -e.deltaY * 0.002; // scroll up → zoom in
+    const next = Math.max(PREVIEW_MIN, Math.min(PREVIEW_MAX, previewScale + delta));
+    if (next === previewScale) return;
+    previewScale = next;
+    applyPreviewScale();
   },
   { passive: false }
 );
