@@ -293,8 +293,9 @@ const PREVIEW_MIN = 0.1;
 const PREVIEW_MAX = 1;
 let previewScale = 1;
 function applyPreviewScale() {
-  canvas.style.transform = `scale(${previewScale})`;
-  canvas.style.transformOrigin = "center center";
+  // Use a CSS var that scales max-width/height, not `transform: scale()`,
+  // so the 12px border-radius stays the same regardless of zoom.
+  canvas.style.setProperty("--preview-scale", String(previewScale));
 }
 stageEl.addEventListener(
   "wheel",

@@ -450,8 +450,8 @@ input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; }
   min-height: 0;
 }
 #canvas {
-  max-width: 100%;
-  max-height: 100%;
+  max-width: calc(100% * var(--preview-scale, 1));
+  max-height: calc(100% * var(--preview-scale, 1));
   display: block;
   border-radius: 12px;
   outline: none;
