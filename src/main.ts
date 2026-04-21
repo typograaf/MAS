@@ -1003,11 +1003,15 @@ strengthCanvas.height = 1;
 const strengthCtx = strengthCanvas.getContext("2d")!;
 
 function strengthCssString(): string {
+  // Preview bar uses theme colors: value 0 → #2C0E23, value 1 → #DFF0FF
   return [...strengthStops]
     .sort((a, b) => a.pos - b.pos)
     .map((s) => {
-      const v = Math.round(Math.max(0, Math.min(1, s.value)) * 255);
-      return `rgb(${v},${v},${v}) ${(s.pos * 100).toFixed(1)}%`;
+      const t = Math.max(0, Math.min(1, s.value));
+      const r = Math.round(0x2c + (0xdf - 0x2c) * t);
+      const g = Math.round(0x0e + (0xf0 - 0x0e) * t);
+      const b = Math.round(0x23 + (0xff - 0x23) * t);
+      return `rgb(${r},${g},${b}) ${(s.pos * 100).toFixed(1)}%`;
     })
     .join(", ");
 }

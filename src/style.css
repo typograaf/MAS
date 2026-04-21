@@ -55,7 +55,7 @@ html, body {
 #app {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 48px;
   padding: 24px;
   height: 100vh;
   min-height: 0;
@@ -339,12 +339,12 @@ input[type="range"] {
 }
 input[type="range"]::-webkit-slider-runnable-track {
   height: 2px;
-  background: rgba(44, 14, 35, 0.25);
+  background: var(--surface);
   border-radius: 12px;
 }
 input[type="range"]::-moz-range-track {
   height: 2px;
-  background: rgba(44, 14, 35, 0.25);
+  background: var(--surface);
   border-radius: 12px;
 }
 input[type="range"]::-webkit-slider-thumb {
