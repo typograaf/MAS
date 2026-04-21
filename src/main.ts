@@ -44,6 +44,9 @@ const params: GlassParams = {
   strengthMaskOn: false,
 };
 
+// Snapshot for per-slider reset buttons
+const INITIAL_PARAMS: GlassParams = { ...params };
+
 type StrengthStop = { pos: number; value: number };
 let strengthStops: StrengthStop[] = [
   { pos: 0, value: 0 },
@@ -156,10 +159,12 @@ function renderSliderRow(def: SliderDef): HTMLElement {
     </div>
     <div class="slider-row">
       <input type="range" min="${def.min}" max="${def.max}" step="${def.step}" value="${params[def.key]}" />
+      <button type="button" class="reset-btn" title="Reset to default">reset</button>
     </div>
   `;
-  const input = wrap.querySelector("input") as HTMLInputElement;
+  const input = wrap.querySelector('input[type="range"]') as HTMLInputElement;
   const val = wrap.querySelector(".slider-val") as HTMLSpanElement;
+  const resetBtn = wrap.querySelector(".reset-btn") as HTMLButtonElement;
   sliderInputs[def.key] = input;
   sliderValEls[def.key] = val;
   const updateLabel = () => {
@@ -169,6 +174,13 @@ function renderSliderRow(def: SliderDef): HTMLElement {
   updateLabel();
   input.addEventListener("input", () => {
     params[def.key] = parseFloat(input.value);
+    updateLabel();
+    schedule();
+  });
+  resetBtn.addEventListener("click", () => {
+    const defaultVal = INITIAL_PARAMS[def.key];
+    params[def.key] = defaultVal;
+    input.value = String(defaultVal);
     updateLabel();
     schedule();
   });
@@ -263,6 +275,13 @@ const updateSpeedLabel = () => {
 };
 speedSlider.addEventListener("input", updateSpeedLabel);
 updateSpeedLabel();
+
+const SPEED_DEFAULT = parseFloat(speedSlider.value);
+const speedResetBtn = document.getElementById("speedResetBtn") as HTMLButtonElement | null;
+speedResetBtn?.addEventListener("click", () => {
+  speedSlider.value = String(SPEED_DEFAULT);
+  updateSpeedLabel();
+});
 
 // Canvas size inputs (left sidebar) drive the on-screen working canvas
 const canvasWInp = document.getElementById("canvasW") as HTMLInputElement;
