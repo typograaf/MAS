@@ -53,6 +53,7 @@ const params: GlassParams = {
   lumMin: 0,
   lumMax: 1,
   strengthMaskOn: false,
+  inputBlur: 0,
 };
 
 // Snapshot for per-slider reset buttons
@@ -154,6 +155,7 @@ const sliderDefs: SliderDef[] = [
   { key: "yCurve", label: "Vertical curve", min: 0, max: 1, step: 0.01, format: (v) => v.toFixed(2) },
   { key: "zoom", label: "Zoom", min: 1, max: 5, step: 0.01, format: (v) => `${(v * 100).toFixed(0)}%` },
   { key: "frost", label: "Frost", min: 0, max: 1, step: 0.01, format: (v) => v.toFixed(2) },
+  { key: "inputBlur", label: "Source blur", min: 0, max: 1, step: 0.01, format: (v) => v.toFixed(2) },
 ];
 
 const sliderInputs: Partial<Record<keyof GlassParams, HTMLInputElement>> = {};

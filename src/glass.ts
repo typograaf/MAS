@@ -9,6 +9,42 @@ void main() {
 }
 `;
 
+// Non-flipping vertex shader for the blur pass — FBO pixel → texel is identity
+const BLUR_VERT = `
+attribute vec2 a_pos;
+varying vec2 v_uv;
+void main() {
+  v_uv = a_pos * 0.5 + 0.5;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const BLUR_FRAG = `
+precision highp float;
+uniform sampler2D u_tex;
+uniform vec2 u_texelSize;
+uniform vec2 u_axis;
+varying vec2 v_uv;
+
+// Tight 31-tap Gaussian, sigma ≈ 5 px, step = 1 px (no aliasing).
+// Iterate this pass N times to grow the effective blur radius cleanly.
+void main() {
+  const float SIGMA = 5.0;
+  const float TWO_SIGMA2 = 2.0 * SIGMA * SIGMA;
+  vec3 sum = texture2D(u_tex, v_uv).rgb;
+  float total = 1.0;
+  for (int i = 1; i <= 15; i++) {
+    float x = float(i);
+    float w = exp(-x * x / TWO_SIGMA2);
+    vec2 off = u_axis * x * u_texelSize;
+    sum += texture2D(u_tex, v_uv + off).rgb * w;
+    sum += texture2D(u_tex, v_uv - off).rgb * w;
+    total += 2.0 * w;
+  }
+  gl_FragColor = vec4(sum / total, 1.0);
+}
+`;
+
 const FRAG = `
 precision highp float;
 
@@ -144,6 +180,7 @@ export interface GlassParams {
   lumMin: number;
   lumMax: number;
   strengthMaskOn: boolean;
+  inputBlur: number;
 }
 
 type Source = HTMLImageElement | HTMLVideoElement | ImageBitmap;
@@ -157,6 +194,14 @@ export class GlassRenderer {
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
   private gradientTex: WebGLTexture | null = null;
   private strengthMaskTex: WebGLTexture | null = null;
+  // Two-pass separable Gaussian blur resources
+  private blurProgram: WebGLProgram | null = null;
+  private blurUniforms: Record<string, WebGLUniformLocation | null> = {};
+  private blurFB1: WebGLFramebuffer | null = null;
+  private blurFB2: WebGLFramebuffer | null = null;
+  private blurTex1: WebGLTexture | null = null;
+  private blurTex2: WebGLTexture | null = null;
+  private blurSize: [number, number] = [0, 0];
 
   constructor(private canvas: HTMLCanvasElement) {
     const attrs: WebGLContextAttributes & { colorSpace?: string } = {
@@ -173,11 +218,22 @@ export class GlassRenderer {
       if ("drawingBufferColorSpace" in glAny) glAny.drawingBufferColorSpace = "display-p3";
     } catch {}
     this.program = this.buildProgram();
+    this.blurProgram = this.buildProgram(BLUR_VERT, BLUR_FRAG);
+    this.cacheBlurUniforms();
+    gl.useProgram(this.program);
     this.setupGeometry();
     this.cacheUniforms();
   }
 
-  private buildProgram(): WebGLProgram {
+  private cacheBlurUniforms() {
+    const gl = this.gl;
+    const p = this.blurProgram!;
+    for (const name of ["u_tex", "u_texelSize", "u_axis"]) {
+      this.blurUniforms[name] = gl.getUniformLocation(p, name);
+    }
+  }
+
+  private buildProgram(vertSrc: string = VERT, fragSrc: string = FRAG): WebGLProgram {
     const gl = this.gl;
     const compile = (src: string, type: number) => {
       const sh = gl.createShader(type)!;
@@ -189,8 +245,10 @@ export class GlassRenderer {
       return sh;
     };
     const prog = gl.createProgram()!;
-    gl.attachShader(prog, compile(VERT, gl.VERTEX_SHADER));
-    gl.attachShader(prog, compile(FRAG, gl.FRAGMENT_SHADER));
+    gl.attachShader(prog, compile(vertSrc, gl.VERTEX_SHADER));
+    gl.attachShader(prog, compile(fragSrc, gl.FRAGMENT_SHADER));
+    // Force a_pos to location 0 so the vertex buffer binding works for every program
+    gl.bindAttribLocation(prog, 0, "a_pos");
     gl.linkProgram(prog);
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
       throw new Error("Program link: " + gl.getProgramInfoLog(prog));
@@ -290,6 +348,76 @@ export class GlassRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   }
 
+  private ensureBlurResources(w: number, h: number) {
+    if (this.blurSize[0] === w && this.blurSize[1] === h && this.blurTex1) return;
+    const gl = this.gl;
+    if (this.blurTex1) gl.deleteTexture(this.blurTex1);
+    if (this.blurTex2) gl.deleteTexture(this.blurTex2);
+    if (this.blurFB1) gl.deleteFramebuffer(this.blurFB1);
+    if (this.blurFB2) gl.deleteFramebuffer(this.blurFB2);
+    const makeTex = () => {
+      const t = gl.createTexture()!;
+      gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      return t;
+    };
+    const makeFb = (tex: WebGLTexture) => {
+      const fb = gl.createFramebuffer()!;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+      return fb;
+    };
+    this.blurTex1 = makeTex();
+    this.blurTex2 = makeTex();
+    this.blurFB1 = makeFb(this.blurTex1);
+    this.blurFB2 = makeFb(this.blurTex2);
+    this.blurSize = [w, h];
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  // Iterated separable Gaussian. Each pass is a tight σ≈5 kernel; combined σ
+  // grows as singleσ × √iterations, with no inter-tap aliasing.
+  private runBlur(targetSigma: number): WebGLTexture {
+    const gl = this.gl;
+    const [w, h] = this.imageSize;
+    this.ensureBlurResources(w, h);
+
+    const PASS_SIGMA = 5;
+    let iterations = Math.ceil(Math.pow(targetSigma / PASS_SIGMA, 2));
+    iterations = Math.max(1, Math.min(iterations, 25));
+
+    gl.useProgram(this.blurProgram!);
+    gl.viewport(0, 0, w, h);
+    gl.uniform2f(this.blurUniforms.u_texelSize!, 1 / w, 1 / h);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.uniform1i(this.blurUniforms.u_tex!, 0);
+
+    let srcTex: WebGLTexture = this.texture!;
+    for (let i = 0; i < iterations; i++) {
+      // Horizontal: srcTex → blurTex1
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.blurFB1);
+      gl.bindTexture(gl.TEXTURE_2D, srcTex);
+      gl.uniform2f(this.blurUniforms.u_axis!, 1, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+      // Vertical: blurTex1 → blurTex2
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.blurFB2);
+      gl.bindTexture(gl.TEXTURE_2D, this.blurTex1);
+      gl.uniform2f(this.blurUniforms.u_axis!, 0, 1);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+      srcTex = this.blurTex2!;
+    }
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.useProgram(this.program);
+    return srcTex;
+  }
+
   private outputSize: { w: number; h: number } | null = null;
 
   setOutputSize(size: { w: number; h: number } | null) {
@@ -317,12 +445,20 @@ export class GlassRenderer {
     if (this.source instanceof HTMLVideoElement && this.source.readyState >= 2) {
       this.uploadFrame();
     }
+
+    // Pre-blur the source with iterated Gaussian when inputBlur > 0.
+    let sourceTex = this.texture!;
+    if (params.inputBlur > 0.002) {
+      const sigma = params.inputBlur * 25;  // 0..1 → 0..25px effective σ
+      sourceTex = this.runBlur(sigma);
+    }
+
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    gl.bindTexture(gl.TEXTURE_2D, sourceTex);
     gl.uniform1i(this.uniforms.u_image!, 0);
     gl.uniform2f(this.uniforms.u_imageSize!, this.imageSize[0], this.imageSize[1]);
     gl.uniform2f(this.uniforms.u_canvasSize!, this.canvas.width, this.canvas.height);
