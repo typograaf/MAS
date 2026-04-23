@@ -20,6 +20,17 @@ const exportMovBtn = document.getElementById("exportMovBtn") as HTMLButtonElemen
 exportPngBtn.disabled = true;
 exportMovBtn.disabled = true;
 
+// Export resolution multiplier (1x / 2x / 3x of the on-screen canvas size)
+let exportScale = 1;
+const exportScaleSeg = document.getElementById("exportScaleSeg") as HTMLDivElement;
+exportScaleSeg.querySelectorAll<HTMLButtonElement>("[data-scale]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    exportScale = parseInt(btn.dataset.scale ?? "1", 10) || 1;
+    exportScaleSeg.querySelectorAll(".surface-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+  });
+});
+
 function setSourceLoaded() {
   exportBtn.disabled = false;
   playBtn.disabled = false;
@@ -479,21 +490,43 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 async function exportPng() {
+  const origW = canvas.width;
+  const origH = canvas.height;
+  const targetW = origW * exportScale;
+  const targetH = origH * exportScale;
+  // Pixel-unit params must scale with the canvas so slat geometry looks identical
+  const origSlat = params.slatWidth;
+  const origOffset = params.offset;
+  if (exportScale > 1) {
+    renderer.setOutputSize({ w: targetW, h: targetH });
+    params.slatWidth = origSlat * exportScale;
+    params.offset = origOffset * exportScale;
+  }
   renderer.render(params);
-  // Copy through a 2D canvas tagged display-p3 so toBlob embeds the P3 ICC
-  // profile in the PNG. Direct WebGL canvas.toBlob doesn't reliably do this.
+
   const mirror = document.createElement("canvas");
-  mirror.width = canvas.width;
-  mirror.height = canvas.height;
+  mirror.width = targetW;
+  mirror.height = targetH;
   const ctx = mirror.getContext(
     "2d",
     { colorSpace: "display-p3" } as CanvasRenderingContext2DSettings
   );
   const target = ctx ? mirror : canvas;
   if (ctx) ctx.drawImage(canvas, 0, 0);
-  target.toBlob((blob) => {
-    if (blob) downloadBlob(blob, "mas-overlay.png");
-  }, "image/png");
+
+  await new Promise<void>((resolve) => {
+    target.toBlob((blob) => {
+      if (blob) downloadBlob(blob, `mas-overlay@${exportScale}x.png`);
+      resolve();
+    }, "image/png");
+  });
+
+  if (exportScale > 1) {
+    params.slatWidth = origSlat;
+    params.offset = origOffset;
+    renderer.setOutputSize({ w: origW, h: origH });
+    renderer.render(params);
+  }
 }
 
 const LOOP_COUNT = 10;
@@ -522,13 +555,20 @@ async function exportLoop(fmt: ExportFormat) {
 
   // Safari's captureStream() on a WebGL canvas silently produces no frames.
   // Workaround: copy the WebGL canvas to a 2D canvas each frame.
-  // Cap to chosen resolution and align to multiples of 16 — most H.264 encoders
-  // fail silently on non-16-aligned dimensions or sizes above their hw limit.
-  const MAX_DIM = parseInt(exportResSelect.value, 10) || 1920;
-  const sourceMax = Math.max(canvas.width, canvas.height);
-  const scale = Math.min(1, MAX_DIM / sourceMax);
-  const outW = Math.max(16, Math.floor(canvas.width * scale / 16) * 16);
-  const outH = Math.max(16, Math.floor(canvas.height * scale / 16) * 16);
+  // Render at exportScale × canvas size, aligned to multiples of 16 (H.264).
+  const baseW = canvas.width;
+  const baseH = canvas.height;
+  const outW = Math.max(16, Math.floor((baseW * exportScale) / 16) * 16);
+  const outH = Math.max(16, Math.floor((baseH * exportScale) / 16) * 16);
+  // Save and scale pixel-unit params so slat geometry matches the higher-res canvas
+  const origSlat = params.slatWidth;
+  const origOffsetVal = params.offset;
+  const origSpeed = speedPxPerSec;
+  if (exportScale > 1) {
+    renderer.setOutputSize({ w: outW, h: outH });
+    params.slatWidth = origSlat * exportScale;
+    speedPxPerSec = origSpeed * exportScale;
+  }
   const mirrorCanvas = document.createElement("canvas");
   mirrorCanvas.width = outW;
   mirrorCanvas.height = outH;
@@ -554,7 +594,10 @@ async function exportLoop(fmt: ExportFormat) {
   console.log("[export] mirror size", mirrorCanvas.width, "x", mirrorCanvas.height,
               "tracks:", stream.getVideoTracks().length, "track state:", track?.readyState);
 
-  const recorder = new MediaRecorder(stream, { mimeType: fmt.mime });
+  const recorder = new MediaRecorder(stream, {
+    mimeType: fmt.mime,
+    videoBitsPerSecond: Math.min(120_000_000, Math.round(outW * outH * 60 * 0.25)),
+  });
   console.log("[export] recorder mime:", recorder.mimeType, "state:", recorder.state);
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => {
@@ -604,15 +647,22 @@ async function exportLoop(fmt: ExportFormat) {
     requestAnimationFrame(recordTick);
   });
 
-  // Restore previous play state
+  // Restore previous play state and pixel-unit params
   if (currentVideo && !wasPlaying) currentVideo.pause();
   if (wasPlaying) setPlaying(true);
   document.body.removeChild(mirrorCanvas);
+  if (exportScale > 1) {
+    params.slatWidth = origSlat;
+    params.offset = origOffsetVal;
+    speedPxPerSec = origSpeed;
+    renderer.setOutputSize({ w: baseW, h: baseH });
+    renderer.render(params);
+  }
 
   const outMime = fmt.container === "mov" ? "video/quicktime" : fmt.mime;
   const blob = new Blob(chunks, { type: outMime });
   console.log("[export] final blob bytes:", blob.size, "chunks:", chunks.length);
-  downloadBlob(blob, `mas-loop.${fmt.ext}`);
+  downloadBlob(blob, `mas-loop@${exportScale}x.${fmt.ext}`);
 
   exportBtn.disabled = false;
   exportBtn.textContent = "Export";
@@ -627,7 +677,9 @@ function pickH264Codec(w: number, h: number): string {
   if (px <= 1280 * 720) return "avc1.64001F";          // High 3.1
   if (px <= 1920 * 1088) return "avc1.640028";         // High 4.0 — 1080p60
   if (px <= 2560 * 1440) return "avc1.640032";         // High 5.0 — 1440p60
-  return "avc1.640033";                                 // High 5.1 — 4K60
+  if (px <= 3840 * 2160) return "avc1.640033";         // High 5.1 — 4K60
+  if (px <= 4096 * 2160) return "avc1.640034";         // High 5.2
+  return "avc1.640040";                                 // High 6.0 — 8K
 }
 
 async function exportViaWebCodecs(fmt: ExportFormat) {
@@ -641,11 +693,19 @@ async function exportViaWebCodecs(fmt: ExportFormat) {
   const FPS = 60;
   const totalFrames = Math.max(1, Math.round(loopSec * LOOP_COUNT * FPS));
 
-  const MAX_DIM = parseInt(exportResSelect.value, 10) || 1920;
-  const sourceMax = Math.max(canvas.width, canvas.height);
-  const scale = Math.min(1, MAX_DIM / sourceMax);
-  const outW = Math.max(16, Math.floor(canvas.width * scale / 16) * 16);
-  const outH = Math.max(16, Math.floor(canvas.height * scale / 16) * 16);
+  // Render at exportScale × canvas size, aligned to multiples of 16
+  const baseW = canvas.width;
+  const baseH = canvas.height;
+  const outW = Math.max(16, Math.floor((baseW * exportScale) / 16) * 16);
+  const outH = Math.max(16, Math.floor((baseH * exportScale) / 16) * 16);
+  // Save and scale pixel-unit params so geometry + animation match higher-res canvas
+  const origSlatWebcodec = params.slatWidth;
+  const origSpeedWebcodec = speedPxPerSec;
+  if (exportScale > 1) {
+    renderer.setOutputSize({ w: outW, h: outH });
+    params.slatWidth = origSlatWebcodec * exportScale;
+    speedPxPerSec = origSpeedWebcodec * exportScale;
+  }
 
   const mirror = document.createElement("canvas");
   mirror.width = outW;
@@ -693,7 +753,9 @@ async function exportViaWebCodecs(fmt: ExportFormat) {
     width: outW,
     height: outH,
     framerate: FPS,
-    bitrate: Math.round(outW * outH * FPS * 0.1),  // ~0.1 bits/pixel/frame
+    // Higher BPP for clean output. Cap at ~150 Mbps to stay encoder-friendly.
+    bitrate: Math.min(150_000_000, Math.round(outW * outH * FPS * 0.3)),
+    bitrateMode: "variable",
     avc: { format: "avc" },
   });
 
@@ -738,7 +800,7 @@ async function exportViaWebCodecs(fmt: ExportFormat) {
         timestamp: Math.round(i * 1_000_000 / FPS),
         duration: Math.round(1_000_000 / FPS),
       });
-      encoder.encode(frame, { keyFrame: i === 0 || i % (FPS * 2) === 0 });
+      encoder.encode(frame, { keyFrame: i === 0 || i % FPS === 0 });
       frame.close();
 
       // Throttle to prevent encoder queue from blowing up
@@ -760,13 +822,18 @@ async function exportViaWebCodecs(fmt: ExportFormat) {
     const outMime = fmt.container === "mov" ? "video/quicktime" : "video/mp4";
     const blob = new Blob([buffer], { type: outMime });
     console.log("[export] final blob bytes:", blob.size);
-    downloadBlob(blob, `mas-loop.${fmt.ext}`);
+    downloadBlob(blob, `mas-loop@${exportScale}x.${fmt.ext}`);
   } catch (err) {
     console.error("[export] failed", err);
     alert("Export failed. Try a lower resolution or check the console.");
   } finally {
     params.offset = originalOffset;
     setOffsetUI(originalOffset);
+    if (exportScale > 1) {
+      params.slatWidth = origSlatWebcodec;
+      speedPxPerSec = origSpeedWebcodec;
+      renderer.setOutputSize({ w: baseW, h: baseH });
+    }
     renderer.render(params);
     if (wasPlaying) setPlaying(true);
     exportBtn.disabled = false;

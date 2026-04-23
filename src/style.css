@@ -166,14 +166,23 @@ html, body {
   letter-spacing: 0;
 }
 
-/* ---------- SEGMENTED PAIR ---------- */
-.seg2 {
+/* ---------- SEGMENTED ROWS ---------- */
+.seg2,
+.seg3 {
   display: flex;
   gap: 6px;
 }
-.seg2 > * {
+.seg2 > *,
+.seg3 > * {
   flex: 1 0 0;
   min-width: 0;
+}
+.seg3 .surface-btn.active,
+#exportScaleSeg .surface-btn.active {
+  background: var(--bg);
+  color: var(--text);
+  outline: 1px solid var(--surface);
+  outline-offset: -1px;
 }
 
 /* ---------- SURFACE BUTTONS ---------- */
